@@ -1,50 +1,41 @@
 #include <string>
 #include <cmath>
 #include <optional>
-#include <LuaBridge/LuaBridge.h>
-#include <SFML/Graphics.hpp>
-#include "Server.h"
-#include "Client.h"
+#include <ctime>
+#include "LuaBrain.h"
+#include "NetworkConnection.h"
 
-float Length(const sf::Vector2f& vector)
+float Length(sf::Vector2f vector)
 {
     return sqrtf(powf(vector.x, 2) + powf(vector.y, 2));
 }
 
-sf::Vector2f Normalize(const sf::Vector2f& vector)
+sf::Vector2f Normalize(sf::Vector2f vector)
 {
     return vector / Length(vector);
 }
 
-sf::Vector2f MoveTowards(const sf::Vector2f& start, const sf::Vector2f& end, float step)
+sf::Vector2f Lerp(sf::Vector2f start, sf::Vector2f end, float step)
 {
     sf::Vector2f to = end - start;
     if (to == sf::Vector2f(0, 0))
-    {
         return start;
-    }
     float length = Length(to);
     return start + to / length * fminf(length, step);
 }
 
-void serverMain(sf::RenderWindow& window, sf::Text& message)
+void game(Network::Connection&& connection, Lua::Brain&& brain, sf::RenderWindow& window, sf::Text& message)
 {
-    Server server(message);
-    lua_State* L = luaL_newstate();
-    luaL_openlibs(L);
-    luabridge::getGlobalNamespace(L).
-        beginClass<sf::Vector2f>("Vector2f").
-        addProperty("x", &sf::Vector2f::x).
-        addProperty("y", &sf::Vector2f::y).
-        addConstructor<void(*)(void)>().
-        endClass();
-    sf::CircleShape triangle(100.f, 3);
-    triangle.setFillColor(sf::Color::Green);
-    luaL_dofile(L, InputDirectory"triangle.lua");
-    triangle.setPosition(luabridge::getGlobal(L, "destination").cast<sf::Vector2f>());
-    sf::Clock clock;
-    sf::Packet toSend, toReceive;
-    sf::Vector2f previousDestination;
+    sf::CircleShape player(100.f, 3);
+    player.setPosition(brain.GetPosition());
+    player.setOrigin(player.getLocalBounds().left + player.getLocalBounds().width / 2.f, player.getLocalBounds().top + player.getLocalBounds().height / 2.f);
+    player.setFillColor(sf::Color::Green);
+    sf::CircleShape enemy(player);
+    enemy.setFillColor(sf::Color::Red);
+    sf::Vector2f enemyDestination{};
+    const sf::FloatRect map({ 0, 0 }, static_cast<sf::Vector2f>(window.getSize()));
+    sf::Clock frame;
+    Network::PositionDestination initialReceive{};
     while (window.isOpen())
     {
         sf::Event event;
@@ -57,54 +48,48 @@ void serverMain(sf::RenderWindow& window, sf::Text& message)
                 break;
             }
         }
-        luaL_dofile(L, InputDirectory"triangle.lua");
-        sf::Vector2f destination = luabridge::getGlobal(L, "destination").cast<sf::Vector2f>();
-        float speed = luabridge::getGlobal(L, "speed").cast<float>();
-        triangle.setPosition(MoveTowards(triangle.getPosition(), destination, clock.restart().asSeconds() * speed));
-        if (server.Receive(toReceive) == sf::Socket::Done || previousDestination != triangle.getPosition())
+        float deltaTime = frame.restart().asSeconds();
+        if (connection.established)
         {
-            previousDestination = triangle.getPosition();
-            toSend << previousDestination.x << previousDestination.y;
-            while(server.Send(toSend) == sf::Socket::Partial);
-            toSend.clear();
-        }
-        window.clear();
-        window.draw(triangle);
-        window.draw(message);
-        window.display();
-    }
-    lua_close(L);
-}
-
-void clientMain(sf::RenderWindow& window, sf::String address, sf::String port, sf::Text& message)
-{
-    Client client(address, port, message);
-    sf::CircleShape triangle(100.f, 3);
-    sf::Packet packet;
-    sf::Clock clock;
-    triangle.setFillColor(sf::Color::Green);
-    while (window.isOpen())
-    {
-        sf::Event event; 
-        while (window.pollEvent(event))
-        {
-            switch (event.type)
+            if (!brain.Move(map))
             {
-                case sf::Event::Closed:
-                    window.close();
-                    break;
+                if (connection.Send(brain.GetDestination()) == sf::Socket::Done)
+                {
+                    std::time_t t = std::time(nullptr);
+                    std::tm tm = *std::localtime(&t);
+                    message.setString(message.getString() + "\nSent destination at " + std::to_string(tm.tm_min) + ":" + std::to_string(tm.tm_sec));
+                }
             }
+            sf::Vector2f nextPosition = Lerp(brain.GetPosition(), brain.GetDestination().destination, deltaTime * brain.GetSpeed());
+            player.setPosition(nextPosition);
+            brain.SetPosition(nextPosition);
+            Network::Destination destinationMessage;
+            if (connection.Receive(destinationMessage) == sf::Socket::Done)
+            {
+                enemyDestination = destinationMessage.destination;
+                std::time_t t = std::time(NULL);
+                std::tm tm = *std::localtime(&t);
+                message.setString(message.getString() + "\nReceived destination at " + std::to_string(tm.tm_min) + ":" + std::to_string(tm.tm_sec));
+            }
+            enemy.setPosition(Lerp(enemy.getPosition(), enemyDestination, deltaTime * brain.GetSpeed()));
         }
-        if (client.Receive(packet) == sf::Socket::Done)
+        else if (connection.Receive(initialReceive) == sf::Socket::Done)
         {
-            float x, y;
-            packet >> x >> y;
-            message.setString("Received x: " + std::to_string(x) + " and y: " + std::to_string(y) + 
-                "\nat frame: " + std::to_string(clock.getElapsedTime().asSeconds()));
-            triangle.setPosition(x, y);
+            connection.established = true;
+            connection.Send(brain.GetInitialMessage());
+            enemy.setPosition(initialReceive.position);
+            enemyDestination = initialReceive.destination;
+            message.setCharacterSize(15);
+            std::time_t t = std::time(nullptr);
+            std::tm tm = *std::localtime(&t);
+            message.setString("Sent initial message at " + std::to_string(tm.tm_min) + ":" + std::to_string(tm.tm_sec));
         }
         window.clear();
-        window.draw(triangle);
+        if (connection.established)
+        {
+            window.draw(player);
+            window.draw(enemy);
+        }
         window.draw(message);
         window.display();
     }
@@ -116,12 +101,12 @@ int main()
 {
     sf::ContextSettings settings;
     settings.antialiasingLevel = 8;
-    sf::RenderWindow window(sf::VideoMode(800, 600), "Lerping triangle", sf::Style::Default, settings);
+    sf::RenderWindow window(sf::VideoMode(1280, 720), "Lerping triangle", sf::Style::Default, settings);
     sf::Font arrial;
     arrial.loadFromFile(FontDirectory"arial.ttf");
     sf::Text message("Do you want to be a server or a client?", arrial, 24);
     message.setStyle(sf::Text::Bold);
-    message.setPosition((800 - message.getGlobalBounds().width) / 2, 100);
+    message.setPosition((window.getSize().x - message.getGlobalBounds().width) / 2, 100);
     sf::Text answer(message);
     Role role(Role::Undecided);
     std::optional<sf::String> address;
@@ -142,6 +127,8 @@ int main()
                     answer.setString(answer.getString() + static_cast<char>(event.key.code + 'a'));
                 else if (event.key.code >= sf::Keyboard::Num0 && event.key.code <= sf::Keyboard::Num9)
                     answer.setString(answer.getString() + std::to_string(event.key.code - sf::Keyboard::Num0));
+                else if (event.key.code == sf::Keyboard::Period)
+                    answer.setString(answer.getString() + '.');
                 if (event.key.code == sf::Keyboard::Backspace)
                 {
                     sf::String result(answer.getString());
@@ -161,7 +148,9 @@ int main()
                             role = Role::Server;
                             message.setString("");
                             answer.setString("");
-                            serverMain(window, message);
+                            Network::Connection server(message);
+                            Lua::Brain brain("move&shoot.lua", { 300, 100 });
+                            game(std::move(server), std::move(brain), window, message);
                         }
                         else if (answer.getString() == "client")
                         {
@@ -183,7 +172,14 @@ int main()
                             sf::String port(answer.getString());
                             message.setString("");
                             answer.setString("");
-                            clientMain(window, address.value(), port, message);
+                            Network::Connection client(address.value(), port, message);
+#ifndef _DEBUG
+                            Lua::Brain brain("move&shoot.lua", { 980, 500 });
+#else
+                            Lua::Brain brain("move&shoot - Copy.lua", { 980, 500 });
+#endif
+                            client.Send(brain.GetInitialMessage());
+                            game(std::move(client), std::move(brain), window, message);
                         }
                         break;
                     }                   

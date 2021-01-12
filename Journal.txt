@@ -1,0 +1,11 @@
+25 Oct - tryed OpenVPN out
+10-13 Nov - research how programming is taught at the university level, refs: 1, 4-7, 10, 11, 15, 17, 18, 20
+16, 17 Nov - learnt Lua, ref:25
+26 Nov - project setup on GitHub
+27 Nov - achieved ful non-blocking TCP & UDP connections (not yet source controlled)
+30 Nov - got familiarized with LuaBridge & SFML's networking module, 
+considered different ways of networking the game (decided to use UDP sockets)
+1 Dec - added initial project
+4 Dec - change the code to only use UDP, improved the "UI", created the setNextDestination lua function
+7 Dec - investigated different VPN servers/LAN bridge solutions to minimise network latency
+11 Dec - created the design of the aim function
