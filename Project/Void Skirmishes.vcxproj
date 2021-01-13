@@ -19,14 +19,18 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Character.cpp" />
     <ClCompile Include="NetworkConnection.cpp" />
     <ClCompile Include="LuaBrain.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="HealthBar.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Character.h" />
     <ClInclude Include="NetworkMessages.h" />
     <ClInclude Include="NetworkConnection.h" />
     <ClInclude Include="LuaBrain.h" />
+    <ClInclude Include="HealthBar.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
