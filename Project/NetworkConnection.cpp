@@ -2,7 +2,7 @@
 namespace Network
 {
 	Connection::Connection(sf::Text& messageBoard) : messageBoard(messageBoard), socket(), otherAddress(), otherPort{},
-		sent(), received(), established{}
+		sent(), received(), established{}, server{ true }
 	{
 		socket.setBlocking(false);
 		sf::Socket::Status status = socket.bind(sf::Socket::AnyPort);
@@ -19,7 +19,7 @@ namespace Network
 	Connection::Connection(const sf::String& address, const sf::String& port, sf::Text& messageBoard)
 		: messageBoard(messageBoard), socket(), otherAddress(address.isEmpty() ?
 			sf::IpAddress::LocalHost : sf::IpAddress(address)), otherPort{ static_cast<sf::Uint16>(std::stoi(port.toAnsiString())) },
-		sent(), received(), established{}
+		sent(), received(), established{}, server{ false }
 	{
 		socket.setBlocking(false);
 	}

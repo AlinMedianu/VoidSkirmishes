@@ -14,41 +14,73 @@ namespace Network
 		{ packet >> message } -> std::same_as<sf::Packet&>;
 	};
 
-	struct Destination
+	namespace Messages
 	{
-		sf::Vector2f destination;
-		const sf::Uint8 id{};
-		friend sf::Packet& operator<< (sf::Packet& packet, const Destination& self)
+		inline sf::Packet& operator<< (sf::Packet& packet, sf::Vector2f self)
 		{
-			return packet << self.id << self.destination.x << self.destination.y;
+			return packet << self.x << self.y;
 		}
-		friend sf::Packet& operator>> (sf::Packet& packet, Destination& self)
-		{
-			sf::Uint8 id{};
-			if (!packet.endOfPacket() && reinterpret_cast<const sf::Uint8*>(packet.getData())[0] == self.id)
-				return packet >> id >> self.destination.x >> self.destination.y;
-			return packet;
-		}
-	};
 
-	struct PositionDestination
-	{
-		sf::Vector2f position, destination;
-		const sf::Uint8 id{ 1 };
-		friend sf::Packet& operator<< (sf::Packet& packet, const PositionDestination& self)
+		inline sf::Packet& operator>> (sf::Packet& packet, sf::Vector2f& self)
 		{
-			return packet << self.id << self.position.x << self.position.y << 
-				self.destination.x << self.destination.y;
+			return packet >> self.x >> self.y;
 		}
-		friend sf::Packet& operator>> (sf::Packet& packet, PositionDestination& self)
+
+		struct Initial
 		{
-			sf::Uint8 id{};
-			if (!packet.endOfPacket() && reinterpret_cast<const sf::Uint8*>(packet.getData())[0] == self.id)
-				return packet >> id >> self.position.x >> self.position.y >>
-					self.destination.x >> self.destination.y;
-			return packet;
-		}
-	};
+			const sf::Uint8 id{ 0 };
+			sf::Vector2f position, destination, facingDirection, aimingDirection;
+			friend sf::Packet& operator<< (sf::Packet& packet, const Initial& self)
+			{
+				return packet << self.id << self.position << self.destination << self.facingDirection << self.aimingDirection;
+			}
+			friend sf::Packet& operator>> (sf::Packet& packet, Initial& self)
+			{
+				sf::Uint8 id{};
+				if (!packet.endOfPacket() && reinterpret_cast<const sf::Uint8*>(packet.getData())[0] == self.id)
+					return packet >> id >> self.position >> self.destination >> self.facingDirection >> self.aimingDirection;
+				return packet;
+			}
+		};
+
+		struct Destination
+		{
+			const sf::Uint8 id{ 1 };
+			sf::Vector2f destination;
+			friend sf::Packet& operator<< (sf::Packet& packet, const Destination& self)
+			{
+				return packet << self.id << self.destination;
+			}
+			friend sf::Packet& operator>> (sf::Packet& packet, Destination& self)
+			{
+				sf::Uint8 id{};
+				if (!packet.endOfPacket())
+				{
+					sf::Uint8 packetID = reinterpret_cast<const sf::Uint8*>(packet.getData())[0];
+					if(packetID == self.id)
+						return packet >> id >> self.destination;
+				}
+				return packet;
+			}
+		};
+
+		struct AimingDirection
+		{
+			const sf::Uint8 id{ 2 };
+			sf::Vector2f aimingDirection;
+			friend sf::Packet& operator<< (sf::Packet& packet, const AimingDirection& self)
+			{
+				return packet << self.id << self.aimingDirection;
+			}
+			friend sf::Packet& operator>> (sf::Packet& packet, AimingDirection& self)
+			{
+				sf::Uint8 id{};
+				if (!packet.endOfPacket() && reinterpret_cast<const sf::Uint8*>(packet.getData())[0] == self.id)
+					return packet >> id >> self.aimingDirection;
+				return packet;
+			}
+		};
+	}
 }
 
 #endif // !NETWORKMESSAGES

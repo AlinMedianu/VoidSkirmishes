@@ -4,6 +4,7 @@
 #include <SFML/Network.hpp>
 #include <SFML/Graphics.hpp>
 #include "NetworkMessages.h"
+#include <cassert>
 
 namespace Network
 {
@@ -16,6 +17,8 @@ namespace Network
 		sf::Packet sent, received;
 		void LogSocketStatus(const std::string& message, sf::Socket::Status status);
 	public:
+		//TODO: replace server bool with RemoveRedundantMessages function
+		bool server;
 		bool established;
 		Connection(sf::Text& messageBoard);
 		Connection(const sf::String& address, const sf::String& port, sf::Text& messageBoard);
@@ -33,20 +36,31 @@ namespace Network
 		return socket.send(sent, otherAddress, otherPort);
 	}
 
+	//TODO: refactor message receiving
 	template<Message M>
 	sf::Socket::Status Connection::Receive(M& message)
 	{
 		sf::IpAddress newAddress{ sf::IpAddress::None };
 		sf::Uint16 newPort{};
-		sf::Socket::Status hasReceived{ socket.receive(received, newAddress, newPort) };
+		bool cleared = received.endOfPacket();
+		sf::Socket::Status hasReceived{ sf::Socket::Done };
+		if (cleared)
+			hasReceived = socket.receive(received, newAddress, newPort);
 		if (hasReceived == sf::Socket::Done)
 		{
-			otherAddress = newAddress;
-			otherPort = newPort;
+			if (cleared)
+			{
+				otherAddress = newAddress;
+				otherPort = newPort;
+			}
 			received >> message;
-			bool correctMessage{ received.endOfPacket() };
-			received.clear();
-			return correctMessage ? sf::Socket::Done : sf::Socket::Error;
+			if (received.endOfPacket())
+			{
+				received.clear();
+				hasReceived = sf::Socket::Done;
+			}
+			else
+				hasReceived =  sf::Socket::Error;
 		}
 		return hasReceived;
 	}
