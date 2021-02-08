@@ -3,6 +3,7 @@
 #include <cmath>
 #include <numbers>
 #include <SFML/System/Vector2.hpp>
+#include <SFML/Graphics/Rect.hpp>
 
 namespace Math
 {
@@ -86,5 +87,11 @@ namespace Math
     [[nodiscard]] inline bool ApproximativelyEqual(sf::Vector2f first, sf::Vector2f second) noexcept
     {
         return ApproximativelyEqual(first.x, second.x) && ApproximativelyEqual(first.y, second.y);
+    }
+
+    [[nodiscard]] inline sf::Vector2f Confine(sf::Vector2f position, const sf::FloatRect& area)
+    {
+        return { std::clamp(position.x, area.left, area.left + area.width), 
+            std::clamp(position.y, area.top, area.top + area.height) };
     }
 }

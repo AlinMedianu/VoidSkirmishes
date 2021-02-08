@@ -15,7 +15,8 @@ void game(Network::Connection&& connection, Lua::Brain&& brain, sf::RenderWindow
     player.AddHealthBar(playerHealthbar);
     enemy.AddHealthBar(enemyHealthBar);
     sf::Vector2f enemyDestination{}, enemyAimingDirection{};
-    const sf::FloatRect map({ 0, 0 }, static_cast<sf::Vector2f>(window.getSize()));
+    sf::Vector2f windowSize = static_cast<sf::Vector2f>(window.getSize());
+    const sf::FloatRect map(windowSize * 0.1f, windowSize * 0.8f);
     sf::Clock frame;
     Network::Messages::Initial initialReceive{};
     while (window.isOpen())

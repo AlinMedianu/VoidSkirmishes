@@ -1,8 +1,8 @@
 player.setNextDestination = function(map)
     if player.position.x < map.x + 0.5 * map.width then
-        player.destination.x = map.x + 0.9 * map.width
+        player.destination.x = map.x + map.width
     else
-        player.destination.x = map.x + 0.1 * map.width
+        player.destination.x = map.x
     end
 end
 player.aim = function(enemy)

@@ -50,6 +50,7 @@ namespace Lua
 				char const* s = lua_tostring(state, -1);
 				int i{};
 			}
+			player["destination"] = Math::Confine(player["destination"].cast<sf::Vector2f>(), map);
 			return true;
 		}
 		return false;
@@ -57,10 +58,8 @@ namespace Lua
 
 	bool Brain::Aim(const Character& enemy)
 	{
-		auto a = player["facingDirection"].cast<sf::Vector2f>();
-		auto b = Math::Normalize(player["aimingDirection"].cast<sf::Vector2f>());
-		if (Math::ApproximativelyEqual(a, 
-			b))
+		if (Math::ApproximativelyEqual(player["facingDirection"].cast<sf::Vector2f>(),
+			Math::Normalize(player["aimingDirection"].cast<sf::Vector2f>())))
 		{
 			player["aim"](enemy);
 			return true;
