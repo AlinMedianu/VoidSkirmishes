@@ -11,11 +11,14 @@ void game(Network::Connection&& connection, Lua::Brain&& brain, sf::RenderWindow
         enemy(window.getSize().x / 16.f, {}, {}, sf::Color::Red);
     HealthBar playerHealthBar(player.GetBounds(), { 0.8f, 0.05f }, 100, sf::Color::Green),
         enemyHealthBar(enemy.GetBounds(), { 0.8f, 0.05f }, 100, sf::Color::Red);
-    player.AddHealthBar(playerHealthBar);
-    enemy.AddHealthBar(enemyHealthBar);
-    Laser playerLaser({ window.getSize().x / 24.f, window.getSize().y * 2.f }, sf::Color::Green);
-    player.AddLaser(playerLaser);
+    player.healthBar = &playerHealthBar;
+    enemy.healthBar = &enemyHealthBar;
+    Laser playerLaser({ window.getSize().x / 24.f, window.getSize().y * 2.f }, sf::Color::Green),
+        enemyLaser({ window.getSize().x / 24.f, window.getSize().y * 2.f }, sf::Color::Red);
+    player.laser = &playerLaser;
+    enemy.laser = &enemyLaser;
     sf::Vector2f enemyDestination{}, enemyAimingDirection{};
+    sf::Int32 health{ player.healthBar->GetHealth().health };
     sf::Vector2f windowSize = static_cast<sf::Vector2f>(window.getSize());
     const sf::FloatRect map(windowSize * 0.1f, windowSize * 0.8f);
     sf::Clock frame;
@@ -37,6 +40,7 @@ void game(Network::Connection&& connection, Lua::Brain&& brain, sf::RenderWindow
         {
             Network::Messages::Destination destinationMessage;
             Network::Messages::AimingDirection aimingDirectionMessage;
+            Network::Messages::EnemyHealth enemyHealthMessage;
             if (connection.Receive(destinationMessage) == sf::Socket::Done)
             {
                 enemyDestination = destinationMessage.destination;
@@ -47,17 +51,27 @@ void game(Network::Connection&& connection, Lua::Brain&& brain, sf::RenderWindow
             }
             else if (connection.Receive(aimingDirectionMessage) == sf::Socket::Done)
             {
+                enemy.FakeShoot(Math::AngleToDirection(Math::NormalizeDegrees(enemy.GetRotation())));
                 enemyAimingDirection = aimingDirectionMessage.aimingDirection;
                 std::time_t t = std::time(nullptr);
                 std::tm tm = *std::localtime(&t);
                 message.setString(message.getString() + "\nReceived aiming direction " + std::to_string(enemyAimingDirection.x) +
                     " " + std::to_string(enemyAimingDirection.y) + " at " + std::to_string(tm.tm_min) + ":" + std::to_string(tm.tm_sec));
             }
+            else if (connection.Receive(enemyHealthMessage) == sf::Socket::Done)
+            {
+                health = enemyHealthMessage.health;
+                std::time_t t = std::time(nullptr);
+                std::tm tm = *std::localtime(&t);
+                message.setString(message.getString() + "\nReceived health " + std::to_string(health) +
+                    " at " + std::to_string(tm.tm_min) + ":" + std::to_string(tm.tm_sec));
+            }
             sf::Vector2f nextPosition = Math::Lerp(enemy.GetPosition(), enemyDestination, deltaTime * brain.GetMovementSpeed());
             enemy.SetPosition(nextPosition);
             float nextRotation = Math::LerpNormalizedAngle(Math::NormalizeDegrees(enemy.GetRotation()),
                 Math::DirectionToAngle(enemyAimingDirection), deltaTime * brain.GetTurningSpeed());
             enemy.SetRotation(nextRotation);
+            enemy.Update(deltaTime);
             if (brain.SetNextDestination(map) && connection.Send(brain.GetDestination()) == sf::Socket::Done)
             {
                 std::time_t t = std::time(nullptr);
@@ -71,8 +85,8 @@ void game(Network::Connection&& connection, Lua::Brain&& brain, sf::RenderWindow
                 std::tm tm = *std::localtime(&t);
                 message.setString(message.getString() + "\nSent aiming direction " + std::to_string(brain.GetAimingDirection().aimingDirection.x) +
                     " " + std::to_string(brain.GetAimingDirection().aimingDirection.y) + " at " + std::to_string(tm.tm_min) + ":" + std::to_string(tm.tm_sec));
-                //TODO: shoot
-                if (player.Shoot(brain.GetFacingDirection(), enemy) != 0);
+                if (player.Shoot(brain.GetFacingDirection(), enemy) && connection.Send(enemy.healthBar->GetHealth()) == sf::Socket::Done)
+                    message.setString(message.getString() + "\nSent health " + std::to_string(enemy.healthBar->GetHealth().health));
             }
             nextPosition = Math::Lerp(brain.GetPosition(), brain.GetDestination().destination, deltaTime * brain.GetMovementSpeed());
             player.SetPosition(nextPosition);
@@ -81,7 +95,8 @@ void game(Network::Connection&& connection, Lua::Brain&& brain, sf::RenderWindow
                 Math::DirectionToAngle(brain.GetAimingDirection().aimingDirection), deltaTime * brain.GetTurningSpeed());
             player.SetRotation(nextRotation);
             brain.SetFacingDirection(Math::AngleToDirection(nextRotation));  
-            player.Update(deltaTime);
+            player.Update(deltaTime); 
+            player.healthBar->SetHealth(health);
         }
         //TODO: make initial not have destination or aiming direction, wait for those messages, show both avatars as on the spot
         else if (connection.Receive(initialReceive) == sf::Socket::Done)

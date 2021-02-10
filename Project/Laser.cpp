@@ -11,12 +11,17 @@ Laser::Laser(sf::Vector2f size, const sf::Color& colour)
 bool Laser::TryHit(const std::array<sf::Vector2f, 4>& otherIntersectionRectangle, 
 	sf::Vector2f from, sf::Vector2f direction, float duration)
 {
-	body.setPosition(from);
-	body.setRotation(Math::DirectionToAngle(direction));
-	lifetimeTimer = duration;
+	Flash(from, direction, duration);
 	std::array<sf::Vector2f, 4> intersectionRectangle{};
 	Math::LocalRectangleToGlobal(body.getLocalBounds(), body, intersectionRectangle);
 	return Math::AreRectanglesIntersecting(intersectionRectangle, otherIntersectionRectangle);
+}
+
+void Laser::Flash(sf::Vector2f from, sf::Vector2f direction, float duration)
+{
+	body.setPosition(from);
+	body.setRotation(Math::DirectionToAngle(direction));
+	lifetimeTimer = duration;
 }
 
 void Laser::Update(float deltaTime)

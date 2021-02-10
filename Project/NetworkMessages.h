@@ -80,6 +80,23 @@ namespace Network
 				return packet;
 			}
 		};
+
+		struct EnemyHealth
+		{
+			const sf::Uint8 id{ 3 };
+			sf::Int32 health;
+			friend sf::Packet& operator<< (sf::Packet& packet, const EnemyHealth& self)
+			{
+				return packet << self.id << self.health;
+			}
+			friend sf::Packet& operator>> (sf::Packet& packet, EnemyHealth& self)
+			{
+				sf::Uint8 id{};
+				if (!packet.endOfPacket() && reinterpret_cast<const sf::Uint8*>(packet.getData())[0] == self.id)
+					return packet >> id >> self.health;
+				return packet;
+			}
+		};
 	}
 }
 
