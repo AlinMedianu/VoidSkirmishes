@@ -1,4 +1,3 @@
-#include <string>
 #include <optional>
 #include <ctime>
 #include "Math.h"
@@ -10,10 +9,12 @@ void game(Network::Connection&& connection, Lua::Brain&& brain, sf::RenderWindow
 {
     Character player(window.getSize().x / 16.f, brain.GetPosition(), Math::DirectionToAngle(brain.GetFacingDirection()), sf::Color::Green), 
         enemy(window.getSize().x / 16.f, {}, {}, sf::Color::Red);
-    HealthBar playerHealthbar(player.GetBounds(), { 0.8f, 0.05f }, 100, sf::Color::Green),
+    HealthBar playerHealthBar(player.GetBounds(), { 0.8f, 0.05f }, 100, sf::Color::Green),
         enemyHealthBar(enemy.GetBounds(), { 0.8f, 0.05f }, 100, sf::Color::Red);
-    player.AddHealthBar(playerHealthbar);
+    player.AddHealthBar(playerHealthBar);
     enemy.AddHealthBar(enemyHealthBar);
+    Laser playerLaser({ window.getSize().x / 24.f, window.getSize().y * 2.f }, sf::Color::Green);
+    player.AddLaser(playerLaser);
     sf::Vector2f enemyDestination{}, enemyAimingDirection{};
     sf::Vector2f windowSize = static_cast<sf::Vector2f>(window.getSize());
     const sf::FloatRect map(windowSize * 0.1f, windowSize * 0.8f);
@@ -71,6 +72,7 @@ void game(Network::Connection&& connection, Lua::Brain&& brain, sf::RenderWindow
                 message.setString(message.getString() + "\nSent aiming direction " + std::to_string(brain.GetAimingDirection().aimingDirection.x) +
                     " " + std::to_string(brain.GetAimingDirection().aimingDirection.y) + " at " + std::to_string(tm.tm_min) + ":" + std::to_string(tm.tm_sec));
                 //TODO: shoot
+                if (player.Shoot(brain.GetFacingDirection(), enemy) != 0);
             }
             nextPosition = Math::Lerp(brain.GetPosition(), brain.GetDestination().destination, deltaTime * brain.GetMovementSpeed());
             player.SetPosition(nextPosition);
@@ -78,7 +80,8 @@ void game(Network::Connection&& connection, Lua::Brain&& brain, sf::RenderWindow
             nextRotation = Math::LerpNormalizedAngle(Math::DirectionToAngle(brain.GetFacingDirection()), 
                 Math::DirectionToAngle(brain.GetAimingDirection().aimingDirection), deltaTime * brain.GetTurningSpeed());
             player.SetRotation(nextRotation);
-            brain.SetFacingDirection(Math::AngleToDirection(nextRotation));            
+            brain.SetFacingDirection(Math::AngleToDirection(nextRotation));  
+            player.Update(deltaTime);
         }
         //TODO: make initial not have destination or aiming direction, wait for those messages, show both avatars as on the spot
         else if (connection.Receive(initialReceive) == sf::Socket::Done)
@@ -105,9 +108,9 @@ void game(Network::Connection&& connection, Lua::Brain&& brain, sf::RenderWindow
                 " " + std::to_string(initialReceive.aimingDirection.y) + " at " + std::to_string(tm.tm_min) + ":" + std::to_string(tm.tm_sec));
         }
         window.clear();
+            player.Draw(window);
         if (connection.established)
         {
-            player.Draw(window);
             enemy.Draw(window);
         }
         window.draw(message);
@@ -121,7 +124,7 @@ int main()
 {
     sf::ContextSettings settings;
     settings.antialiasingLevel = 8;
-    sf::RenderWindow window(sf::VideoMode(1280, 720), "Lerping triangle", sf::Style::Default, settings);
+    sf::RenderWindow window(sf::VideoMode(1280, 720), "Void Skirmishes", sf::Style::Default, settings);
     sf::Font arrial;
     arrial.loadFromFile(FontDirectory"arial.ttf");
     sf::Text message("Do you want to be a server or a client?", arrial, 24);

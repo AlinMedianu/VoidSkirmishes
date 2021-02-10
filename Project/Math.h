@@ -2,8 +2,11 @@
 #include <cassert>
 #include <cmath>
 #include <numbers>
+#include <array>
+#include <algorithm>
 #include <SFML/System/Vector2.hpp>
 #include <SFML/Graphics/Rect.hpp>
+#include <SFML/Graphics/Transformable.hpp>
 
 namespace Math
 {
@@ -93,5 +96,48 @@ namespace Math
     {
         return { std::clamp(position.x, area.left, area.left + area.width), 
             std::clamp(position.y, area.top, area.top + area.height) };
+    }
+
+    inline void LocalRectangleToGlobal(const sf::FloatRect& from, const sf::Transformable& convertor, std::array<sf::Vector2f, 4>& to)
+    {
+        to[0] = { from.left, from.top };
+        to[1] = { from.left + from.width, from.top };
+        to[2] = { from.left + from.width, from.top + from.height };
+        to[3] = { from.left, from.top + from.height };
+        std::transform(to.begin(), to.end(), to.begin(), [&convertor](sf::Vector2f localRectanglePoint)
+            {
+                return convertor.getTransform().transformPoint(localRectanglePoint);
+            });
+    }
+
+    [[nodiscard]] inline bool AreRectanglesIntersecting(const std::array<sf::Vector2f, 4>& first, const std::array<sf::Vector2f, 4>& second)
+    {
+        std::array<sf::Vector2f, 4> axis
+        {
+            first[1] - first[0],
+            first[2] - first[1],
+            second[1] - second[0],
+            second[2] - second[1]
+        };
+        std::array<float, 4> lineProjectedPoints{};
+        for (sf::Vector2f singleAxis : axis)
+        {
+            std::transform(first.begin(), first.end(), lineProjectedPoints.begin(), [singleAxis](sf::Vector2f point)
+                {
+                    return Dot(point, singleAxis);
+                });
+            auto lineProjectedPointsRange = std::minmax_element(lineProjectedPoints.begin(), lineProjectedPoints.end());
+            std::pair<float, float> firstLineProjectedPointsRange{ *lineProjectedPointsRange.first, *lineProjectedPointsRange.second };
+            std::transform(second.begin(), second.end(), lineProjectedPoints.begin(), [singleAxis](sf::Vector2f point)
+                {
+                    return Dot(point, singleAxis);
+                });
+            lineProjectedPointsRange = std::minmax_element(lineProjectedPoints.begin(), lineProjectedPoints.end());
+            std::pair<float, float> secondLineProjectedPointsRange{ *lineProjectedPointsRange.first, *lineProjectedPointsRange.second };
+            if (firstLineProjectedPointsRange.second < secondLineProjectedPointsRange.first ||
+                secondLineProjectedPointsRange.second < firstLineProjectedPointsRange.first)
+                return false;
+        }
+        return true;
     }
 }
