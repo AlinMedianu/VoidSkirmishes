@@ -1,8 +1,8 @@
 #ifndef NETWORKCONNECTION
 #define NETWORKCONNECTION
 
-#include <SFML/Network.hpp>
-#include <SFML/Graphics.hpp>
+#include <SFML/Network/UdpSocket.hpp>
+#include <SFML/Graphics/Text.hpp>
 #include "NetworkMessages.h"
 #include <cassert>
 
