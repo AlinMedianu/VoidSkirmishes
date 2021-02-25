@@ -18,7 +18,7 @@ namespace Network
 		void LogSocketStatus(const std::string& message, sf::Socket::Status status);
 	public:
 		//TODO: replace server bool with RemoveRedundantMessages function
-		bool server;
+		bool host;
 		bool established;
 		Connection(sf::Text& messageBoard);
 		Connection(const sf::String& address, const sf::String& port, sf::Text& messageBoard);

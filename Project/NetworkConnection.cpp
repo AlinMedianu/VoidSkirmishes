@@ -2,7 +2,7 @@
 namespace Network
 {
 	Connection::Connection(sf::Text& messageBoard) : messageBoard(messageBoard), socket(), otherAddress(), otherPort{},
-		sent(), received(), established{}, server{ true }
+		sent(), received(), established{}, host{ true }
 	{
 		socket.setBlocking(false);
 		sf::Socket::Status status = socket.bind(sf::Socket::AnyPort);
@@ -12,16 +12,17 @@ namespace Network
 			return;
 		}
 		messageBoard.setString("Local address: " + sf::IpAddress::getLocalAddress().toString() +
-			"\nServer is listening to port " + std::to_string(socket.getLocalPort()) +
+			"\nHost is listening to port " + std::to_string(socket.getLocalPort()) +
 			",\nwaiting for connections... ");
 	}
 
 	Connection::Connection(const sf::String& address, const sf::String& port, sf::Text& messageBoard)
 		: messageBoard(messageBoard), socket(), otherAddress(address.isEmpty() ?
 			sf::IpAddress::LocalHost : sf::IpAddress(address)), otherPort{ static_cast<sf::Uint16>(std::stoi(port.toAnsiString())) },
-		sent(), received(), established{}, server{ false }
+		sent(), received(), established{}, host{ false }
 	{
 		socket.setBlocking(false);
+		messageBoard.setString("Connecting to host... ");
 	}
 
 	void Connection::LogSocketStatus(const std::string& message, sf::Socket::Status status)

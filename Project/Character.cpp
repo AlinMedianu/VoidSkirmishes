@@ -1,12 +1,15 @@
 #include "Character.h"
 
-Character::Character(float radius, sf::Vector2f position, float rotation, const sf::Color& colour)
-	: body(radius, 3), healthBar{ nullptr }, laser{ nullptr }
+Character::Character(float radius, sf::Vector2f position, float rotation, float scale, const sf::Color& colour)
+	: bodyTexture(), body(), healthBar{ nullptr }, laser{ nullptr }
 {
+	bodyTexture.loadFromFile(SpriteDirectory"Player.png");
+	body.setTexture(bodyTexture);
 	body.setPosition(position);
 	body.setRotation(rotation);
+	body.setScale(scale, scale);
 	body.setOrigin(body.getLocalBounds().left + body.getLocalBounds().width / 2.f, body.getLocalBounds().top + body.getLocalBounds().height / 2.f);
-	body.setFillColor(colour);
+	body.setColor(colour);
 }
 
 sf::FloatRect Character::GetBounds() const

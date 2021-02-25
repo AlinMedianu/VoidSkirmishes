@@ -10,8 +10,8 @@
 void game(Network::Connection&& connection, Lua::Brain&& brain, sf::RenderWindow& window, sf::Text& message)
 {
     Debug logger(message);
-    Character player(window.getSize().x / 16.f, brain.GetPosition(), Math::DirectionToAngle(brain.GetFacingDirection()), sf::Color::Green), 
-        enemy(window.getSize().x / 16.f, {}, {}, sf::Color::Red);
+    Character player(window.getSize().x / 16.f, brain.GetPosition(), Math::DirectionToAngle(brain.GetFacingDirection()), 0.1f, sf::Color::Green), 
+        enemy(window.getSize().x / 16.f, {}, {}, 0.1f, sf::Color::Red);
     HealthBar playerHealthBar(player.GetBounds(), { 0.8f, 0.05f }, 100, sf::Color::Green),
         enemyHealthBar(enemy.GetBounds(), { 0.8f, 0.05f }, 100, sf::Color::Red);
     player.healthBar = &playerHealthBar;
@@ -92,8 +92,8 @@ void game(Network::Connection&& connection, Lua::Brain&& brain, sf::RenderWindow
         else if (connection.Receive(initialReceive) == sf::Socket::Done)
         {
             connection.established = true;
-            if (connection.server)
-            connection.Send(brain.GetInitialMessage());
+            if (connection.host)
+                connection.Send(brain.GetInitialMessage());
             enemy.SetPosition(initialReceive.position);
             enemyDestination = initialReceive.destination;
             enemy.SetRotation(Math::DirectionToAngle(initialReceive.facingDirection));
@@ -114,9 +114,7 @@ void game(Network::Connection&& connection, Lua::Brain&& brain, sf::RenderWindow
         window.clear();
         player.Draw(window);
         if (connection.established)
-        {
             enemy.Draw(window);
-        }
         window.draw(message);
         window.display();
     }

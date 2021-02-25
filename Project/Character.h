@@ -1,17 +1,19 @@
 #ifndef CHARACTER
 #define CHARACTER
 
-#include <SFML/Graphics/CircleShape.hpp>
+#include <SFML/Graphics/Texture.hpp>
+#include <SFML/Graphics/Sprite.hpp>
 #include "HealthBar.h"
 #include "Laser.h"
 
 class Character
 {
-	sf::CircleShape body;
+	sf::Texture bodyTexture;
+	sf::Sprite body;
 public:
 	Laser* laser;
 	HealthBar* healthBar;
-	explicit Character(float radius, sf::Vector2f position, float rotation, const sf::Color& colour);
+	explicit Character(float radius, sf::Vector2f position, float rotation, float scale, const sf::Color& colour);
 	[[nodiscard]] sf::FloatRect GetBounds() const;
 	[[nodiscard]] sf::Vector2f GetPosition() const;
 	void SetPosition(sf::Vector2f newPosition);
