@@ -69,7 +69,7 @@ namespace Lua
 				int i{};
 			}
 			player["destination"] = Math::Confine(player["destination"].cast<sf::Vector2f>(), map);
-			return true;
+			return player["position"].cast<sf::Vector2f>() != player["destination"].cast<sf::Vector2f>();
 		}
 		return false;
 	}
@@ -80,7 +80,8 @@ namespace Lua
 			Math::Normalize(player["aimingDirection"].cast<sf::Vector2f>())))
 		{
 			player["aim"](enemy);
-			return true;
+			return !Math::ApproximativelyEqual(player["facingDirection"].cast<sf::Vector2f>(),
+			Math::Normalize(player["aimingDirection"].cast<sf::Vector2f>()));
 		}
 		return false;
 	}
