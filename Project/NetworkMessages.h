@@ -113,6 +113,22 @@ namespace Network
 				return packet;
 			}
 		};
+
+		struct StartDuel
+		{
+			const sf::Uint8 id{ 5 };
+			friend sf::Packet& operator<< (sf::Packet& packet, const StartDuel& self)
+			{
+				return packet << self.id;
+			}
+			friend sf::Packet& operator>> (sf::Packet& packet, StartDuel& self)
+			{
+				sf::Uint8 id{};
+				if (!packet.endOfPacket() && reinterpret_cast<const sf::Uint8*>(packet.getData())[0] == self.id)
+					return packet >> id;
+				return packet;
+			}
+		};
 	}
 }
 

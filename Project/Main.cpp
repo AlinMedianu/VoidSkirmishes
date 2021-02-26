@@ -8,7 +8,7 @@
 
 enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
 
-[[nodiscard]] DuelOutcome Duel(Network::Connection& connection, Lua::Brain& brain, sf::RenderWindow& window, sf::Text& message)
+[[nodiscard]] DuelOutcome Duel(Network::Connection& connection, Lua::Brain& brain, sf::RenderWindow& window, sf::Text& message, Console& console)
 {
     Debug logger(message);
     Character player(window.getSize().x / 16.f, brain.GetPosition(), Math::DirectionToAngle(brain.GetFacingDirection()), 0.1f, sf::Color::Green), 
@@ -28,6 +28,7 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
     sf::Clock frame;
     std::optional<sf::Clock> disconnectionTimer;
     Network::Messages::Initial initialReceive{};
+    bool duelStarted{ false };
     while (window.isOpen())
     {
         sf::Event event;
@@ -37,6 +38,9 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
             {
             case sf::Event::Closed:
                 window.close();
+                break;
+            case sf::Event::KeyPressed:
+                console.Update(event.key);
                 break;
             }
         }
@@ -51,7 +55,15 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
             disconnectionTimer.emplace();
         }
         float deltaTime = frame.restart().asSeconds();
-        if (connection.established)
+        Network::Messages::StartDuel startDuelMessage{};
+        if (console.GetMessage() == "c")
+        {
+            console.Clear();
+            if (!brain.HasCompiled() && connection.Send(startDuelMessage) == sf::Socket::Done)
+                logger.Log("Sent start duel message");
+            brain.Compile();
+        }
+        if (duelStarted)
         {
             Network::Messages::Destination destinationMessage;
             Network::Messages::AimingDirection aimingDirectionMessage;
@@ -110,11 +122,13 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
             player.Update(deltaTime); 
             player.healthBar->SetHealth(health);
         }
-        //TODO: make initial not have destination or aiming direction, wait for those messages, show both avatars as on the spot
+        else if (brain.HasCompiled() && connection.Receive(startDuelMessage) == sf::Socket::Done)
+            duelStarted = true;
         else if (connection.Receive(initialReceive) == sf::Socket::Done)
         {
+            if (!connection.established)
+                connection.Send(brain.GetInitialMessage());
             connection.established = true;
-            connection.Send(brain.GetInitialMessage());
             enemy.SetPosition(initialReceive.position);
             enemyDestination = initialReceive.position;
             enemy.SetRotation(Math::DirectionToAngle(initialReceive.facingDirection));
@@ -260,7 +274,8 @@ int main()
             {
             case Role::Host:
             case Role::Client:
-                DuelOutcome outcome = Duel(connection.value(), brain.value(), window, message);
+                console.Clear();
+                DuelOutcome outcome = Duel(connection.value(), brain.value(), window, message, console);
                 if (outcome == DuelOutcome::OtherLostConnection)
                 {
                     role = Role::Undecided;

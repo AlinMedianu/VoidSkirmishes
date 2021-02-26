@@ -5,7 +5,8 @@ namespace Lua
 	Brain::Brain(const std::string& script, sf::Vector2f position, sf::Vector2f facingDirection)
 		:state{ luaL_newstate() }, player(luabridge::newTable(state)), 
 		position{ position }, facingDirection{ facingDirection },
-		initialMessage{}, onMoveMessage{}, onRotateMessage{}
+		initialMessage{}, onMoveMessage{}, onRotateMessage{},
+		script{ script }, compiled{ false }
 	{
 		luaL_openlibs(state);
 		luabridge::getGlobalNamespace(state).
@@ -24,11 +25,22 @@ namespace Lua
 			endClass();
 		Reset();
 		luabridge::setGlobal(state, player, "player");
+	}
+
+	bool Brain::HasCompiled() const noexcept
+	{
+		return compiled;
+	}
+
+	void Brain::Compile() noexcept
+	{
+		compiled = true;
 		luaL_dofile(state, (InputDirectory + script).c_str());
 	}
 
-	void Brain::Reset()
+	void Brain::Reset() noexcept
 	{
+		compiled = false;
 		player["position"] = position;
 		player["destination"] = position;
 		player["movementSpeed"] = 100;
