@@ -26,7 +26,7 @@ namespace Network
 		sf::Socket::Status Send(const M& message);
 		template<Message M>
 		sf::Socket::Status Receive(M& message);
-		void FlushMessages();
+		void FlushReceivedMessages();
 	};
 
 	template<Message M>

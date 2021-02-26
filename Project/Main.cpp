@@ -58,11 +58,11 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
         Network::Messages::StartDuel startDuelMessage{};
         if (console.GetMessage() == "c")
         {
-            console.Clear();
             if (!brain.HasCompiled() && connection.Send(startDuelMessage) == sf::Socket::Done)
                 logger.Log("Sent start duel message");
             brain.Compile();
         }
+        console.Clear();
         if (duelStarted)
         {
             Network::Messages::Destination destinationMessage;
@@ -90,7 +90,7 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
                     return DuelOutcome::Lost;
             }
             else
-                connection.FlushMessages();
+                connection.FlushReceivedMessages();
             sf::Vector2f nextPosition = Math::Lerp(enemy.GetPosition(), enemyDestination, deltaTime * brain.GetMovementSpeed());
             enemy.SetPosition(nextPosition);
             float nextRotation = Math::LerpNormalizedAngle(Math::NormalizeDegrees(enemy.GetRotation()),

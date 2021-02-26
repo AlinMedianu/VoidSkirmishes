@@ -25,7 +25,7 @@ namespace Network
 		messageBoard.setString("Connecting to host... ");
 	}
 
-	void Connection::FlushMessages()
+	void Connection::FlushReceivedMessages()
 	{
 		received.clear();
 	}
