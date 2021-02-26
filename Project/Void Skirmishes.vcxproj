@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Character.cpp" />
+    <ClCompile Include="Console.cpp" />
     <ClCompile Include="Debug.cpp" />
     <ClCompile Include="Laser.cpp" />
     <ClCompile Include="NetworkConnection.cpp" />
@@ -29,6 +30,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Character.h" />
+    <ClInclude Include="Console.h" />
     <ClInclude Include="Debug.h" />
     <ClInclude Include="Laser.h" />
     <ClInclude Include="Math.h" />

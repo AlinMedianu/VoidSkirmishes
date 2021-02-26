@@ -17,7 +17,10 @@ namespace Math
 
     [[nodiscard]] inline sf::Vector2f Normalize(sf::Vector2f vector)
     {
-        return vector / Length(vector);
+        float magnitude = Length(vector);
+        if (magnitude == 0)
+            return vector;
+        return vector / magnitude;
     }
 
     [[nodiscard]] inline float Dot(sf::Vector2f first, sf::Vector2f second) noexcept

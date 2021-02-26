@@ -13,11 +13,13 @@ namespace Lua
 	{
 		lua_State* state;
 		luabridge::LuaRef player;
+		sf::Vector2f position, facingDirection;
 		Network::Messages::Initial initialMessage;
 		Network::Messages::Destination onMoveMessage;
 		Network::Messages::AimingDirection onRotateMessage;
 	public:
 		Brain(const std::string& script, sf::Vector2f position, sf::Vector2f facingDirection);
+		void Reset();
 		[[nodiscard]]bool SetNextDestination(const sf::FloatRect& map);
 		[[nodiscard]]bool Aim(const Character& enemy);
 		[[nodiscard]]float GetMovementSpeed() const;

@@ -3,7 +3,8 @@
 namespace Lua
 {
 	Brain::Brain(const std::string& script, sf::Vector2f position, sf::Vector2f facingDirection)
-		:state{ luaL_newstate() }, player(luabridge::newTable(state)),
+		:state{ luaL_newstate() }, player(luabridge::newTable(state)), 
+		position{ position }, facingDirection{ facingDirection },
 		initialMessage{}, onMoveMessage{}, onRotateMessage{}
 	{
 		luaL_openlibs(state);
@@ -21,14 +22,19 @@ namespace Lua
 			beginClass<Character>("Character").
 			addFunction("getPosition", &Character::GetPosition).
 			endClass();
+		Reset();
+		luabridge::setGlobal(state, player, "player");
+		luaL_dofile(state, (InputDirectory + script).c_str());
+	}
+
+	void Brain::Reset()
+	{
 		player["position"] = position;
 		player["destination"] = position;
 		player["movementSpeed"] = 100;
 		player["facingDirection"] = facingDirection;
 		player["aimingDirection"] = facingDirection;
 		player["turningSpeed"] = 10;
-		luabridge::setGlobal(state, player, "player");
-		luaL_dofile(state, (InputDirectory + script).c_str());
 	}
 
 	bool Brain::SetNextDestination(const sf::FloatRect& map)
@@ -112,9 +118,7 @@ namespace Lua
 	const Network::Messages::Initial& Brain::GetInitialMessage()
 	{
 		initialMessage.position = player["position"].cast<sf::Vector2f>();
-		initialMessage.destination = player["destination"].cast<sf::Vector2f>();
 		initialMessage.facingDirection = player["facingDirection"].cast<sf::Vector2f>();
-		initialMessage.aimingDirection = player["aimingDirection"].cast<sf::Vector2f>();
 		return initialMessage;
 	}
 

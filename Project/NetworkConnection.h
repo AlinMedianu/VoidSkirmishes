@@ -16,9 +16,9 @@ namespace Network
 		sf::Uint16 otherPort;
 		sf::Packet sent, received;
 		void LogSocketStatus(const std::string& message, sf::Socket::Status status);
+		template<Message M>
+		sf::Socket::Status Process(M& message);
 	public:
-		//TODO: replace server bool with RemoveRedundantMessages function
-		bool host;
 		bool established;
 		Connection(sf::Text& messageBoard);
 		Connection(const sf::String& address, const sf::String& port, sf::Text& messageBoard);
@@ -26,7 +26,20 @@ namespace Network
 		sf::Socket::Status Send(const M& message);
 		template<Message M>
 		sf::Socket::Status Receive(M& message);
+		void FlushMessages();
 	};
+
+	template<Message M>
+	sf::Socket::Status Connection::Process(M& message)
+	{
+		received >> message;
+		if (received.endOfPacket())
+		{
+			received.clear();
+			return sf::Socket::Done;
+		}
+		return sf::Socket::Error;
+	}
 
 	template<Message M>
 	sf::Socket::Status Connection::Send(const M& message)
@@ -36,31 +49,19 @@ namespace Network
 		return socket.send(sent, otherAddress, otherPort);
 	}
 
-	//TODO: refactor message receiving
 	template<Message M>
 	sf::Socket::Status Connection::Receive(M& message)
 	{
+		if (!received.endOfPacket())
+			return Process(message);
 		sf::IpAddress newAddress{ sf::IpAddress::None };
 		sf::Uint16 newPort{};
-		bool cleared = received.endOfPacket();
-		sf::Socket::Status hasReceived{ sf::Socket::Done };
-		if (cleared)
-			hasReceived = socket.receive(received, newAddress, newPort);
-		if (hasReceived == sf::Socket::Done)
+		sf::Socket::Status hasReceived{};
+		if ((hasReceived = socket.receive(received, newAddress, newPort)) == sf::Socket::Done)
 		{
-			if (cleared)
-			{
-				otherAddress = newAddress;
-				otherPort = newPort;
-			}
-			received >> message;
-			if (received.endOfPacket())
-			{
-				received.clear();
-				hasReceived = sf::Socket::Done;
-			}
-			else
-				hasReceived =  sf::Socket::Error;
+			otherAddress = newAddress;
+			otherPort = newPort;
+			return Process(message);
 		}
 		return hasReceived;
 	}
