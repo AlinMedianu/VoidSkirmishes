@@ -23,6 +23,7 @@
     <ClCompile Include="Console.cpp" />
     <ClCompile Include="Debug.cpp" />
     <ClCompile Include="Laser.cpp" />
+    <ClCompile Include="LuaPlayer.cpp" />
     <ClCompile Include="NetworkConnection.cpp" />
     <ClCompile Include="LuaBrain.cpp" />
     <ClCompile Include="Main.cpp" />
@@ -33,6 +34,7 @@
     <ClInclude Include="Console.h" />
     <ClInclude Include="Debug.h" />
     <ClInclude Include="Laser.h" />
+    <ClInclude Include="LuaPlayer.h" />
     <ClInclude Include="Math.h" />
     <ClInclude Include="NetworkMessages.h" />
     <ClInclude Include="NetworkConnection.h" />

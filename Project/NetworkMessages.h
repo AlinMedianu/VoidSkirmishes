@@ -114,18 +114,19 @@ namespace Network
 			}
 		};
 
-		struct StartDuel
+		struct Pause
 		{
 			const sf::Uint8 id{ 5 };
-			friend sf::Packet& operator<< (sf::Packet& packet, const StartDuel& self)
+			bool paused{ true };
+			friend sf::Packet& operator<< (sf::Packet& packet, const Pause& self)
 			{
-				return packet << self.id;
+				return packet << self.id << self.paused;
 			}
-			friend sf::Packet& operator>> (sf::Packet& packet, StartDuel& self)
+			friend sf::Packet& operator>> (sf::Packet& packet, Pause& self)
 			{
 				sf::Uint8 id{};
 				if (!packet.endOfPacket() && reinterpret_cast<const sf::Uint8*>(packet.getData())[0] == self.id)
-					return packet >> id;
+					return packet >> id >> self.paused;
 				return packet;
 			}
 		};

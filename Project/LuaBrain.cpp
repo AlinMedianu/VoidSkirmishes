@@ -2,12 +2,14 @@
 
 namespace Lua
 {
+	std::string Brain::script = "";
+
 	Brain::Brain(const std::string& script, sf::Vector2f position, sf::Vector2f facingDirection)
-		:state{ luaL_newstate() }, player(luabridge::newTable(state)), 
-		position{ position }, facingDirection{ facingDirection },
-		initialMessage{}, onMoveMessage{}, onRotateMessage{},
-		script{ script }, compiled{ false }
+		:state{ luaL_newstate() }, player(luabridge::newTable(state)), representation{},
+		initialPosition{ position }, initialFacingDirection{ facingDirection },
+		initialMessage{}, onMoveMessage{}, onRotateMessage{}, codeDebug{}
 	{
+		Brain::script = script;
 		luaL_openlibs(state);
 		luabridge::getGlobalNamespace(state).
 			beginClass<sf::Vector2f>("Vector2").
@@ -27,63 +29,103 @@ namespace Lua
 		luabridge::setGlobal(state, player, "player");
 	}
 
-	bool Brain::HasCompiled() const noexcept
+	void Brain::Compile(const sf::FloatRect& map, const Character& enemy) noexcept
 	{
-		return compiled;
-	}
-
-	void Brain::Compile() noexcept
-	{
-		compiled = true;
-		luaL_dofile(state, (InputDirectory + script).c_str());
+		if (!luaL_dofile(state, (InputDirectory + script).c_str()))
+			codeDebug.setString("");
+		representation.SyncFrom(player);
+		SetNextDestination(map);
+		if (codeDebug.getString() == "")
+			Aim(enemy);
+		representation.Sync(player);
 	}
 
 	void Brain::Reset() noexcept
 	{
-		compiled = false;
-		player["position"] = position;
-		player["destination"] = position;
+		player["position"] = initialPosition;
+		player["destination"] = initialPosition;
 		player["movementSpeed"] = 100;
-		player["facingDirection"] = facingDirection;
-		player["aimingDirection"] = facingDirection;
+		player["facingDirection"] = initialFacingDirection;
+		player["aimingDirection"] = initialFacingDirection;
 		player["turningSpeed"] = 10;
 	}
 
-	bool Brain::SetNextDestination(const sf::FloatRect& map)
+	bool Brain::TrySetNextDestination(const sf::FloatRect& map)
 	{
 		if (player["position"].cast<sf::Vector2f>() == player["destination"].cast<sf::Vector2f>())
 		{
-			//TODO: remove user debug hacking
-			try
-			{
-				player["setNextDestination"](map);
-			}
-			catch (const luabridge::LuaException& exception)
-			{
-				lua_getglobal(state, "debug");
-				lua_getfield(state, -1, "traceback");
-				lua_pushvalue(state, 1);
-				lua_pushinteger(state, 2);
-				lua_call(state, 2, 1);
-				char const* s = lua_tostring(state, -1);
-				int i{};
-			}
+			SetNextDestination(map);
 			player["destination"] = Math::Confine(player["destination"].cast<sf::Vector2f>(), map);
 			return player["position"].cast<sf::Vector2f>() != player["destination"].cast<sf::Vector2f>();
 		}
 		return false;
 	}
 
-	bool Brain::Aim(const Character& enemy)
+	int Brain::AddTracebackToError(lua_State* state)
+	{
+		std::string errorMessage = lua_tostring(state, -1);
+		luaL_traceback(state, state, errorMessage.c_str(), errorMessage.find(script) != std::string::npos ? 1 : 2);
+		lua_remove(state, -2);
+		return 1;
+	};
+
+	void Brain::SetNextDestination(const sf::FloatRect& map)
+	{		
+		lua_pushcfunction(state, AddTracebackToError);
+		player["setNextDestination"].push();
+		luabridge::Stack<sf::FloatRect>::push(state, map);
+		if (lua_pcall(state, 1, 1, -3))
+		{		
+			std::string debugMessage;
+			if (lua_type(state, 1) == LUA_TSTRING)
+				debugMessage = lua_tostring(state, 1);
+			else
+			{
+				lua_pushvalue(state, 1);				
+				debugMessage = lua_tostring(state, -2);
+			}
+			codeDebug.setString(debugMessage);
+			lua_pop(state, 1);
+		}
+		lua_pop(state, 1);
+		lua_settop(state, 0);
+	}
+
+	bool Brain::TryAim(const Character& enemy)
 	{
 		if (Math::ApproximativelyEqual(player["facingDirection"].cast<sf::Vector2f>(),
 			Math::Normalize(player["aimingDirection"].cast<sf::Vector2f>())))
 		{
-			player["aim"](enemy);
+			Aim(enemy);
 			return !Math::ApproximativelyEqual(player["facingDirection"].cast<sf::Vector2f>(),
-			Math::Normalize(player["aimingDirection"].cast<sf::Vector2f>()));
+				Math::Normalize(player["aimingDirection"].cast<sf::Vector2f>()));
 		}
 		return false;
+	}
+
+	void Brain::Aim(const Character& enemy)
+	{
+		lua_pushcfunction(state, AddTracebackToError);
+		player["aim"].push();
+		luabridge::Stack<Character>::push(state, enemy);
+		if (lua_pcall(state, 1, 1, -3))
+		{
+			std::string debugMessage;
+			if (lua_type(state, 1) == LUA_TSTRING)
+				debugMessage = lua_tostring(state, 1);
+			else
+			{
+				lua_pushvalue(state, 1);
+				debugMessage = lua_tostring(state, -2);
+			}
+			if (codeDebug.getString() != "")
+				codeDebug.setString(codeDebug.getString() + "\n\n" + debugMessage);
+			else
+				codeDebug.setString(debugMessage);
+			lua_pop(state, 1);
+		}
+		lua_pop(state, 1);
+		lua_settop(state, 0);
 	}
 
 	float Brain::GetMovementSpeed() const

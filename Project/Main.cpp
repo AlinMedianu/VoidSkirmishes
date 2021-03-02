@@ -11,6 +11,12 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
 [[nodiscard]] DuelOutcome Duel(Network::Connection& connection, Lua::Brain& brain, sf::RenderWindow& window, sf::Text& message, Console& console)
 {
     Debug logger(message);
+    brain.codeDebug.setFont(*message.getFont());
+    brain.codeDebug.setCharacterSize(16);
+    brain.codeDebug.setStyle(sf::Text::Bold);
+    brain.codeDebug.setPosition(window.getSize().x / 10.f, 3 * window.getSize().y / 4.f);
+    brain.codeDebug.setOrigin(brain.codeDebug.getLocalBounds().left + brain.codeDebug.getLocalBounds().width / 2.f, 
+        brain.codeDebug.getLocalBounds().top + brain.codeDebug.getLocalBounds().height / 2.f);
     Character player(window.getSize().x / 16.f, brain.GetPosition(), Math::DirectionToAngle(brain.GetFacingDirection()), 0.1f, sf::Color::Green), 
         enemy(window.getSize().x / 16.f, {}, {}, 0.1f, sf::Color::Red);
     HealthBar playerHealthBar(player.GetBounds(), { 0.8f, 0.05f }, 100, sf::Color::Green),
@@ -28,7 +34,7 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
     sf::Clock frame;
     std::optional<sf::Clock> disconnectionTimer;
     Network::Messages::Initial initialReceive{};
-    bool duelStarted{ false };
+    Network::Messages::Pause sentPauseMessage{}, receivedPauseMessage{};
     while (window.isOpen())
     {
         sf::Event event;
@@ -54,16 +60,31 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
             message.setString("Other player got disconnected!");
             disconnectionTimer.emplace();
         }
-        float deltaTime = frame.restart().asSeconds();
-        Network::Messages::StartDuel startDuelMessage{};
+        if (connection.Receive(receivedPauseMessage) == sf::Socket::Done)
+            logger.Log(receivedPauseMessage.paused ? "Received pause message" : "Received unpause message");
+        float deltaTime = frame.restart().asSeconds();          
         if (console.GetMessage() == "c")
         {
-            if (!brain.HasCompiled() && connection.Send(startDuelMessage) == sf::Socket::Done)
-                logger.Log("Sent start duel message");
-            brain.Compile();
+            brain.Compile(map, enemy);
+            if (brain.codeDebug.getString().isEmpty())
+            {
+                if (sentPauseMessage.paused)
+                {
+                    sentPauseMessage.paused = false;
+                    if (connection.Send(sentPauseMessage) == sf::Socket::Done)
+                        logger.Log("Sent unpause message");
+                }
+            }
+            else if (!sentPauseMessage.paused)
+            {
+                sentPauseMessage.paused = true;
+                if (connection.Send(sentPauseMessage) == sf::Socket::Done)
+                    logger.Log("Sent pause message");
+            }
         }
+        
         console.Clear();
-        if (duelStarted)
+        if (!sentPauseMessage.paused && !receivedPauseMessage.paused)
         {
             Network::Messages::Destination destinationMessage;
             Network::Messages::AimingDirection aimingDirectionMessage;
@@ -97,10 +118,10 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
                 Math::DirectionToAngle(enemyAimingDirection), deltaTime * brain.GetTurningSpeed());
             enemy.SetRotation(nextRotation);
             enemy.Update(deltaTime);
-            if (brain.SetNextDestination(map) && connection.Send(brain.GetDestination()) == sf::Socket::Done)
+            if (brain.TrySetNextDestination(map) && connection.Send(brain.GetDestination()) == sf::Socket::Done)
                 logger.Log("Sent destination " + std::to_string(brain.GetDestination().destination.x) +
                     " " + std::to_string(brain.GetDestination().destination.y));
-            if (brain.Aim(enemy) && connection.Send(brain.GetAimingDirection()) == sf::Socket::Done)
+            if (brain.TryAim(enemy) && connection.Send(brain.GetAimingDirection()) == sf::Socket::Done)
             {
                 logger.Log("Sent aiming direction " + std::to_string(brain.GetAimingDirection().aimingDirection.x) +
                     " " + std::to_string(brain.GetAimingDirection().aimingDirection.y));
@@ -112,6 +133,12 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
                         return DuelOutcome::Won;
                 }
             }
+            if (!brain.codeDebug.getString().isEmpty())
+            {
+                sentPauseMessage.paused = true;
+                if (connection.Send(sentPauseMessage) == sf::Socket::Done)
+                    logger.Log("Sent pause message");
+            }
             nextPosition = Math::Lerp(brain.GetPosition(), brain.GetDestination().destination, deltaTime * brain.GetMovementSpeed());
             player.SetPosition(nextPosition);
             brain.SetPosition(nextPosition);
@@ -122,8 +149,6 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
             player.Update(deltaTime); 
             player.healthBar->SetHealth(health);
         }
-        else if (brain.HasCompiled() && connection.Receive(startDuelMessage) == sf::Socket::Done)
-            duelStarted = true;
         else if (connection.Receive(initialReceive) == sf::Socket::Done)
         {
             if (!connection.established)
@@ -150,6 +175,7 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
         if (connection.established)
             enemy.Draw(window);
         window.draw(message);
+        window.draw(brain.codeDebug);
         window.display();
     }
     return DuelOutcome::LostConnection;
