@@ -164,10 +164,9 @@ namespace Lua
 		return onMoveMessage;
 	}
 
-	const Network::Messages::AimingDirection& Brain::GetAimingDirection()
-	{
-		onRotateMessage.aimingDirection = Math::Normalize(player["aimingDirection"].cast<sf::Vector2f>());
-		return onRotateMessage;
+	sf::Vector2f Brain::GetAimingDirection() const
+	{		
+		return Math::Normalize(player["aimingDirection"].cast<sf::Vector2f>());
 	}
 
 	const Network::Messages::Initial& Brain::GetInitialMessage()

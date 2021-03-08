@@ -64,19 +64,20 @@ namespace Network
 			}
 		};
 
-		struct AimingDirection
+		struct Aim
 		{
 			const sf::Uint8 id{ 2 };
 			sf::Vector2f aimingDirection;
-			friend sf::Packet& operator<< (sf::Packet& packet, const AimingDirection& self)
+			bool willShoot;
+			friend sf::Packet& operator<< (sf::Packet& packet, const Aim& self)
 			{
-				return packet << self.id << self.aimingDirection;
+				return packet << self.id << self.aimingDirection << self.willShoot;
 			}
-			friend sf::Packet& operator>> (sf::Packet& packet, AimingDirection& self)
+			friend sf::Packet& operator>> (sf::Packet& packet, Aim& self)
 			{
 				sf::Uint8 id{};
 				if (!packet.endOfPacket() && reinterpret_cast<const sf::Uint8*>(packet.getData())[0] == self.id)
-					return packet >> id >> self.aimingDirection;
+					return packet >> id >> self.aimingDirection >> self.willShoot;
 				return packet;
 			}
 		};

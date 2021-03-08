@@ -19,7 +19,7 @@ namespace Lua
 		sf::Vector2f initialPosition, initialFacingDirection;
 		Network::Messages::Initial initialMessage;
 		Network::Messages::Destination onMoveMessage;
-		Network::Messages::AimingDirection onRotateMessage;
+		Network::Messages::Aim onRotateMessage;
 		static std::string script;
 		void SetNextDestination(const sf::FloatRect& map);
 		void Aim(const Character& enemy);
@@ -38,7 +38,7 @@ namespace Lua
 		[[nodiscard]] sf::Vector2f GetFacingDirection() const;
 		void SetFacingDirection(sf::Vector2f newFacingDirection);
 		[[nodiscard]] const Network::Messages::Destination& GetDestination();
-		[[nodiscard]] const Network::Messages::AimingDirection& GetAimingDirection();
+		[[nodiscard]] sf::Vector2f GetAimingDirection() const;
 		[[nodiscard]] const Network::Messages::Initial& GetInitialMessage();
 		~Brain();
 	};
