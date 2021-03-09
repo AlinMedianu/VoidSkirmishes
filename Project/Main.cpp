@@ -6,7 +6,7 @@
 #include "NetworkConnection.h"
 #include "Character.h"
 
-enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
+enum class DuelOutcome { Won, Lost, Tie, LostConnection, OtherLostConnection };
 
 [[nodiscard]] DuelOutcome Duel(Network::Connection& connection, Lua::Brain& brain, sf::RenderWindow& window, sf::Text& message, Console& console)
 {
@@ -19,8 +19,8 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
         brain.codeDebug.getLocalBounds().top + brain.codeDebug.getLocalBounds().height / 2.f);
     Character player(window.getSize().x / 16.f, brain.GetPosition(), Math::DirectionToAngle(brain.GetFacingDirection()), 0.1f, sf::Color::Green), 
         enemy(window.getSize().x / 16.f, {}, {}, 0.1f, sf::Color::Red);
-    HealthBar playerHealthBar(player.GetBounds(), { 0.8f, 0.05f }, 100, sf::Color::Green),
-        enemyHealthBar(enemy.GetBounds(), { 0.8f, 0.05f }, 100, sf::Color::Red);
+    HealthBar playerHealthBar(player.GetBounds(), { 0.8f, 0.05f }, 10, sf::Color::Green),
+        enemyHealthBar(enemy.GetBounds(), { 0.8f, 0.05f }, 10, sf::Color::Red);
     player.healthBar = &playerHealthBar;
     enemy.healthBar = &enemyHealthBar;
     Laser playerLaser({ window.getSize().x / 24.f, window.getSize().y * 2.f }, sf::Color::Green),
@@ -28,13 +28,16 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
     player.laser = &playerLaser;
     enemy.laser = &enemyLaser;
     sf::Vector2f enemyDestination{}, enemyAimingDirection{};
-    sf::Int32 health{ player.healthBar->GetHealth().health };
     sf::Vector2f windowSize = static_cast<sf::Vector2f>(window.getSize());
     const sf::FloatRect map(windowSize * 0.1f, windowSize * 0.8f);
     sf::Clock frame;
     std::optional<sf::Clock> disconnectionTimer, laserTimer;
     Network::Messages::Initial initialReceive{};
     Network::Messages::Pause sentPauseMessage{}, receivedPauseMessage{};
+    Network::Messages::Destination destinationToReceive{};
+    Network::Messages::Aim aimToReceive{};
+    Network::Messages::Health healthToReceive{};
+    DuelOutcome outcome{ DuelOutcome::Tie };
     while (window.isOpen())
     {
         sf::Event event;
@@ -53,15 +56,6 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
         if (disconnectionTimer.has_value() && disconnectionTimer.value().getElapsedTime().asSeconds() > 3)
             return DuelOutcome::OtherLostConnection;
         Network::Messages::Disconnection disconnectionMessage{};
-        if (connection.Receive(disconnectionMessage) == sf::Socket::Done)
-        {
-            connection.established = false;
-            message.setCharacterSize(24);
-            message.setString("Other player got disconnected!");
-            disconnectionTimer.emplace();
-        }
-        if (connection.Receive(receivedPauseMessage) == sf::Socket::Done)
-            logger.Log(receivedPauseMessage.paused ? "Received pause message" : "Received unpause message");
         float deltaTime = frame.restart().asSeconds();          
         if (console.GetMessage() == "c")
         {
@@ -81,90 +75,11 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
                 if (connection.Send(sentPauseMessage) == sf::Socket::Done)
                     logger.Log("Sent pause message");
             }
-        }
-        
+        }     
         console.Clear();
-        if (!sentPauseMessage.paused && !receivedPauseMessage.paused)
+        if (connection.Receive(initialReceive) == sf::Socket::Done && !connection.established)
         {
-            if (!laserTimer.has_value())
-                laserTimer.emplace();
-            Network::Messages::Destination destinationMessage;
-            Network::Messages::Aim aimToSend, aimToReceive;
-            Network::Messages::EnemyHealth enemyHealthMessage;
-            if (connection.Receive(destinationMessage) == sf::Socket::Done)
-            {
-                enemyDestination = destinationMessage.destination;
-                logger.Log("Received destination " + std::to_string(enemyDestination.x) +
-                    " " + std::to_string(enemyDestination.y));
-            }
-            else if (connection.Receive(aimToReceive) == sf::Socket::Done)
-            {
-                enemyAimingDirection = aimToReceive.aimingDirection;
-                logger.Log("Received aiming direction " + std::to_string(enemyAimingDirection.x) +
-                    " " + std::to_string(enemyAimingDirection.y));
-                if (aimToReceive.willShoot)
-                    enemy.FakeShoot(Math::AngleToDirection(Math::NormalizeDegrees(enemy.GetRotation())));
-            }
-            else if (connection.Receive(enemyHealthMessage) == sf::Socket::Done)
-            {
-                health = enemyHealthMessage.health;
-                logger.Log("Received health " + std::to_string(health));
-                if (health == 0)
-                    //TODO: add health fade timer
-                    return DuelOutcome::Lost;
-            }
-            else
-                connection.FlushReceivedMessages();
-            sf::Vector2f nextPosition = Math::Lerp(enemy.GetPosition(), enemyDestination, deltaTime * brain.GetMovementSpeed());
-            enemy.SetPosition(nextPosition);
-            float nextRotation = Math::LerpNormalizedAngle(Math::NormalizeDegrees(enemy.GetRotation()),
-                Math::DirectionToAngle(enemyAimingDirection), deltaTime * brain.GetTurningSpeed());
-            enemy.SetRotation(nextRotation);
-            enemy.Update(deltaTime);
-            if (brain.TrySetNextDestination(map) && connection.Send(brain.GetDestination()) == sf::Socket::Done)
-                logger.Log("Sent destination " + std::to_string(brain.GetDestination().destination.x) +
-                    " " + std::to_string(brain.GetDestination().destination.y));
-            if (brain.TryAim(enemy))
-            {
-                aimToSend.aimingDirection = brain.GetAimingDirection();
-                aimToSend.willShoot = laserTimer->getElapsedTime().asSeconds() > 1;
-                if (connection.Send(aimToSend) == sf::Socket::Done)
-                {
-                    logger.Log("Sent aiming direction " + std::to_string(aimToSend.aimingDirection.x) +
-                        " " + std::to_string(aimToSend.aimingDirection.y));
-                    if (aimToSend.willShoot)
-                    {
-                        laserTimer->restart();
-                        if (player.Shoot(brain.GetFacingDirection(), enemy) && connection.Send(enemy.healthBar->GetHealth()) == sf::Socket::Done)
-                        {
-                            logger.Log("Sent health " + std::to_string(enemy.healthBar->GetHealth().health));
-                            if (enemy.healthBar->GetHealth().health == 0)
-                                //TODO: add health fade timer
-                                return DuelOutcome::Won;
-                        }
-                    }
-                }
-            }
-            if (!brain.codeDebug.getString().isEmpty())
-            {
-                sentPauseMessage.paused = true;
-                if (connection.Send(sentPauseMessage) == sf::Socket::Done)
-                    logger.Log("Sent pause message");
-            }
-            nextPosition = Math::Lerp(brain.GetPosition(), brain.GetDestination().destination, deltaTime * brain.GetMovementSpeed());
-            player.SetPosition(nextPosition);
-            brain.SetPosition(nextPosition);
-            nextRotation = Math::LerpNormalizedAngle(Math::DirectionToAngle(brain.GetFacingDirection()), 
-                Math::DirectionToAngle(brain.GetAimingDirection()), deltaTime * brain.GetTurningSpeed());
-            player.SetRotation(nextRotation);
-            brain.SetFacingDirection(Math::AngleToDirection(nextRotation));  
-            player.Update(deltaTime); 
-            player.healthBar->SetHealth(health);
-        }
-        else if (connection.Receive(initialReceive) == sf::Socket::Done)
-        {
-            if (!connection.established)
-                connection.Send(brain.GetInitialMessage());
+            connection.Send(brain.GetInitialMessage());
             connection.established = true;
             enemy.SetPosition(initialReceive.position);
             enemyDestination = initialReceive.position;
@@ -181,7 +96,103 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
                 " " + std::to_string(initialReceive.position.y) +
                 " " + std::to_string(initialReceive.facingDirection.x) +
                 " " + std::to_string(initialReceive.facingDirection.y));
-        }     
+        }       
+        else if (connection.Receive(destinationToReceive) == sf::Socket::Done)
+        {
+            enemyDestination = destinationToReceive.destination;
+            logger.Log("Received destination " + std::to_string(enemyDestination.x) +
+                " " + std::to_string(enemyDestination.y));
+        }
+        else if (connection.Receive(aimToReceive) == sf::Socket::Done)
+        {
+            enemyAimingDirection = aimToReceive.aimingDirection;
+            logger.Log("Received aiming direction " + std::to_string(enemyAimingDirection.x) +
+                " " + std::to_string(enemyAimingDirection.y));
+            if (aimToReceive.willShoot)
+                enemy.FakeShoot(Math::AngleToDirection(Math::NormalizeDegrees(enemy.GetRotation())));
+        }
+        else if (connection.Receive(healthToReceive) == sf::Socket::Done)
+        {
+            player.healthBar->FadeHealth(healthToReceive.health);
+            logger.Log("Received health " + std::to_string(healthToReceive.health));
+            if (healthToReceive.health == 0)
+            {
+                if (outcome != DuelOutcome::Won)
+                    outcome = DuelOutcome::Lost;
+                else
+                    outcome = DuelOutcome::Tie;
+            }
+        } 
+        else if (connection.Receive(disconnectionMessage) == sf::Socket::Done)
+        {
+            connection.established = false;
+            message.setCharacterSize(24);
+            message.setString("Other player got disconnected!");
+            disconnectionTimer.emplace();
+        }
+        else if (connection.Receive(receivedPauseMessage) == sf::Socket::Done)
+            logger.Log(receivedPauseMessage.paused ? "Received pause message" : "Received unpause message");
+        else 
+            connection.FlushReceivedMessages();
+        if (!sentPauseMessage.paused && !receivedPauseMessage.paused)
+        {
+            if (!laserTimer.has_value())
+                laserTimer.emplace();
+            sf::Vector2f nextPosition = Math::ConstantIncrement(enemy.GetPosition(), enemyDestination, deltaTime * brain.GetMovementSpeed());
+            enemy.SetPosition(nextPosition);
+            float nextRotation = Math::LerpNormalizedAngle(Math::NormalizeDegrees(enemy.GetRotation()),
+                Math::DirectionToAngle(enemyAimingDirection), deltaTime * brain.GetTurningSpeed());
+            enemy.SetRotation(nextRotation);
+            if (brain.TrySetNextDestination(map) && connection.Send(brain.GetDestination()) == sf::Socket::Done)
+                logger.Log("Sent destination " + std::to_string(brain.GetDestination().destination.x) +
+                    " " + std::to_string(brain.GetDestination().destination.y));
+            if (brain.TryAim(enemy))
+            {
+                Network::Messages::Aim aimToSend;
+                aimToSend.aimingDirection = brain.GetAimingDirection();
+                aimToSend.willShoot = laserTimer->getElapsedTime().asSeconds() > 1;
+                if (connection.Send(aimToSend) == sf::Socket::Done)
+                {
+                    logger.Log("Sent aiming direction " + std::to_string(aimToSend.aimingDirection.x) +
+                        " " + std::to_string(aimToSend.aimingDirection.y));
+                    if (aimToSend.willShoot)
+                    {
+                        laserTimer->restart();
+                        ShootContext context{ player.Shoot(brain.GetFacingDirection(), enemy) };
+                        Network::Messages::Health healthToSend{};
+                        healthToSend.health = context.health;
+                        if (context.hit && connection.Send(healthToSend) == sf::Socket::Done)
+                        {
+                            logger.Log("Sent health " + std::to_string(context.health));
+                            if (context.health == 0)
+                            {
+                                if (outcome != DuelOutcome::Lost)
+                                    outcome = DuelOutcome::Won;
+                                else
+                                    outcome = DuelOutcome::Tie;
+                            }
+                        }
+                    }
+                }
+            }
+            if (!brain.codeDebug.getString().isEmpty())
+            {
+                sentPauseMessage.paused = true;
+                if (connection.Send(sentPauseMessage) == sf::Socket::Done)
+                    logger.Log("Sent pause message");
+            }
+            nextPosition = Math::ConstantIncrement(brain.GetPosition(), brain.GetDestination().destination, deltaTime * brain.GetMovementSpeed());
+            player.SetPosition(nextPosition);
+            brain.SetPosition(nextPosition);
+            nextRotation = Math::LerpNormalizedAngle(Math::DirectionToAngle(brain.GetFacingDirection()), 
+                Math::DirectionToAngle(brain.GetAimingDirection()), deltaTime * brain.GetTurningSpeed());
+            player.SetRotation(nextRotation);
+            brain.SetFacingDirection(Math::AngleToDirection(nextRotation));  
+            player.Update(deltaTime); 
+            enemy.Update(deltaTime);
+            if (player.healthBar->GetHealth() == 0 || enemy.healthBar->GetHealth() == 0)
+                return outcome;
+        }       
         window.clear();
         player.Draw(window);
         if (connection.established)
@@ -202,6 +213,9 @@ enum class DuelOutcome { Won, Lost, LostConnection, OtherLostConnection };
         break;
     case DuelOutcome::Lost:
         message.setString("You lost! Want to take your revenge?(y/n)");
+        break;
+    case DuelOutcome::Tie:
+        message.setString("It's a tie! Want to play again?(y/n)");
         break;
     }
     console.Clear();

@@ -4,6 +4,7 @@
 #include <numbers>
 #include <array>
 #include <algorithm>
+#include <concepts>
 #include <SFML/System/Vector2.hpp>
 #include <SFML/Graphics/Rect.hpp>
 #include <SFML/Graphics/Transformable.hpp>
@@ -57,7 +58,17 @@ namespace Math
         return std::fmodf(angle, 180) - static_cast<float>(180 * Sign(angle) * (static_cast<int>(angle) / 180 % 2));
     }
 
-    [[nodiscard]] inline sf::Vector2f Lerp(sf::Vector2f start, sf::Vector2f end, float step)
+    template<typename Number> requires std::floating_point<Number> || std::signed_integral<Number>
+    [[nodiscard]] inline Number ConstantIncrement(Number start, Number end, Number step) noexcept
+    {
+        if (start == end)
+            return start;
+        if (start < end)
+            return std::min(start + step, end);
+        return std::max(start + step, end);
+    }
+
+    [[nodiscard]] inline sf::Vector2f ConstantIncrement(sf::Vector2f start, sf::Vector2f end, float step)
     {
         sf::Vector2f to{ end - start };
         if (to == sf::Vector2f(0, 0))

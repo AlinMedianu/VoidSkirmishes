@@ -24,6 +24,7 @@ namespace Lua
 		void SetNextDestination(const sf::FloatRect& map);
 		void Aim(const Character& enemy);
 		static int AddTracebackToError(lua_State* L);
+		enum class ErrorMessage { OK, Yield, Runtime, Syntax, MemoryAllocation, MessageHandler };
 	public:
 		sf::Text codeDebug;
 		Brain(const std::string& script, sf::Vector2f position, sf::Vector2f facingDirection);

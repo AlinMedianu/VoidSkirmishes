@@ -6,10 +6,17 @@
 #include "HealthBar.h"
 #include "Laser.h"
 
+struct ShootContext
+{
+	bool hit;
+	sf::Int32 health;
+};
+
 class Character
 {
 	sf::Texture bodyTexture;
 	sf::Sprite body;
+	sf::Transformable nonRotatedBody;
 public:
 	Laser* laser;
 	HealthBar* healthBar;
@@ -21,7 +28,7 @@ public:
 	void SetRotation(float newAngle);
 	void Update(float deltaTime);
 	void Draw(sf::RenderWindow& on);
-	[[nodiscard]] bool Shoot(sf::Vector2f towards, Character& enemy);
+	[[nodiscard]] ShootContext Shoot(sf::Vector2f towards, Character& enemy);
 	void FakeShoot(sf::Vector2f towards);
 };
 

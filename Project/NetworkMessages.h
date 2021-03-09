@@ -82,15 +82,15 @@ namespace Network
 			}
 		};
 
-		struct EnemyHealth
+		struct Health
 		{
 			const sf::Uint8 id{ 3 };
 			sf::Int32 health;
-			friend sf::Packet& operator<< (sf::Packet& packet, const EnemyHealth& self)
+			friend sf::Packet& operator<< (sf::Packet& packet, const Health& self)
 			{
 				return packet << self.id << self.health;
 			}
-			friend sf::Packet& operator>> (sf::Packet& packet, EnemyHealth& self)
+			friend sf::Packet& operator>> (sf::Packet& packet, Health& self)
 			{
 				sf::Uint8 id{};
 				if (!packet.endOfPacket() && reinterpret_cast<const sf::Uint8*>(packet.getData())[0] == self.id)

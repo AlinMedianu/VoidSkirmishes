@@ -1,15 +1,16 @@
 #include "Character.h"
 
 Character::Character(float radius, sf::Vector2f position, float rotation, float scale, const sf::Color& colour)
-	: bodyTexture(), body(), healthBar{ nullptr }, laser{ nullptr }
+	: bodyTexture(), body(), nonRotatedBody(), healthBar{ nullptr }, laser{ nullptr }
 {
 	bodyTexture.loadFromFile(SpriteDirectory"Player.png");
 	body.setTexture(bodyTexture);
 	body.setPosition(position);
-	body.setRotation(rotation);
 	body.setScale(scale, scale);
 	body.setOrigin(body.getLocalBounds().left + body.getLocalBounds().width / 2.f, body.getLocalBounds().top + body.getLocalBounds().height / 2.f);
 	body.setColor(colour);
+	nonRotatedBody = body;
+	body.setRotation(rotation);
 }
 
 sf::FloatRect Character::GetBounds() const
@@ -26,7 +27,10 @@ void Character::SetPosition(sf::Vector2f newPosition)
 {
 	body.setPosition(newPosition);
 	if (healthBar != nullptr)
-		healthBar->MoveTo(body.getGlobalBounds());
+	{
+		nonRotatedBody.setPosition(newPosition);
+		healthBar->MoveTo(nonRotatedBody.getTransform().transformRect(body.getLocalBounds()));
+	}
 }
 
 float Character::GetRotation() const
@@ -41,6 +45,8 @@ void Character::SetRotation(float newAngle)
 
 void Character::Update(float deltaTime)
 {
+	if (healthBar != nullptr)
+		healthBar->Update(deltaTime);
 	if (laser != nullptr)
 		laser->Update(deltaTime);
 }
@@ -54,17 +60,14 @@ void Character::Draw(sf::RenderWindow& on)
 		laser->Draw(on);
 }
 
-bool Character::Shoot(sf::Vector2f towards, Character& enemy)
+ShootContext Character::Shoot(sf::Vector2f towards, Character& enemy)
 {
 	std::array<sf::Vector2f, 4> enemyIntersectionRectangle{};
 	Math::LocalRectangleToGlobal(enemy.body.getLocalBounds(), enemy.body, enemyIntersectionRectangle);
 	if (laser != nullptr && laser->TryHit(enemyIntersectionRectangle, body.getPosition(), towards, 0.5f) &&
 		enemy.healthBar != nullptr)
-	{
-		enemy.healthBar->IncrementHealth(-5);
-		return true;
-	}
-	return false;
+		return ShootContext{ true, enemy.healthBar->FadeIncrementHealth(-1) };
+	return ShootContext{ false, enemy.healthBar->GetHealth() };
 }
 
 void Character::FakeShoot(sf::Vector2f towards)

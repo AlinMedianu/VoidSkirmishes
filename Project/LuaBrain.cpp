@@ -31,9 +31,19 @@ namespace Lua
 
 	void Brain::Compile(const sf::FloatRect& map, const Character& enemy) noexcept
 	{
-		if (!luaL_dofile(state, (InputDirectory + script).c_str()))
-			codeDebug.setString("");
+		ErrorMessage errorMessage = static_cast<ErrorMessage>(luaL_dofile(state, (InputDirectory + script).c_str()));
 		representation.SyncFrom(player);
+		switch (errorMessage)
+		{
+		case ErrorMessage::Yield:
+			player = luabridge::newTable(state);
+			Reset();
+			luabridge::setGlobal(state, player, "player");
+			break;
+		case ErrorMessage::OK:
+			codeDebug.setString("");
+			break;
+		}
 		SetNextDestination(map);
 		if (codeDebug.getString() == "")
 			Aim(enemy);
