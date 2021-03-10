@@ -42,6 +42,9 @@
     <ClCompile Include="LuaPlayer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="UIButton.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="LuaBrain.h">
@@ -72,6 +75,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="LuaPlayer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UIButton.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Resources.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

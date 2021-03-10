@@ -5,11 +5,14 @@
 #include "LuaBrain.h"
 #include "NetworkConnection.h"
 #include "Character.h"
+#include "UIButton.h"
 
 enum class DuelOutcome { Won, Lost, Tie, LostConnection, OtherLostConnection };
 
-[[nodiscard]] DuelOutcome Duel(Network::Connection& connection, Lua::Brain& brain, sf::RenderWindow& window, sf::Text& message, Console& console)
+[[nodiscard]] DuelOutcome Duel(Resources& resources, Network::Connection& connection, Lua::Brain& brain, sf::RenderWindow& window, sf::Text& message)
 {
+    UI::Button compile(resources, { window.getSize().x / 10.f, window.getSize().y / 2.f }, 
+        { 0.75f, 0.25f }, "Compile!");
     Debug logger(message);
     brain.codeDebug.setFont(*message.getFont());
     brain.codeDebug.setCharacterSize(16);
@@ -17,8 +20,8 @@ enum class DuelOutcome { Won, Lost, Tie, LostConnection, OtherLostConnection };
     brain.codeDebug.setPosition(window.getSize().x / 10.f, 3 * window.getSize().y / 4.f);
     brain.codeDebug.setOrigin(brain.codeDebug.getLocalBounds().left + brain.codeDebug.getLocalBounds().width / 2.f, 
         brain.codeDebug.getLocalBounds().top + brain.codeDebug.getLocalBounds().height / 2.f);
-    Character player(window.getSize().x / 16.f, brain.GetPosition(), Math::DirectionToAngle(brain.GetFacingDirection()), 0.1f, sf::Color::Green), 
-        enemy(window.getSize().x / 16.f, {}, {}, 0.1f, sf::Color::Red);
+    Character player(resources, brain.GetPosition(), Math::DirectionToAngle(brain.GetFacingDirection()), 0.1f, sf::Color::Green),
+        enemy(resources, {}, {}, 0.1f, sf::Color::Red);
     HealthBar playerHealthBar(player.GetBounds(), { 0.8f, 0.05f }, 10, sf::Color::Green),
         enemyHealthBar(enemy.GetBounds(), { 0.8f, 0.05f }, 10, sf::Color::Red);
     player.healthBar = &playerHealthBar;
@@ -40,16 +43,19 @@ enum class DuelOutcome { Won, Lost, Tie, LostConnection, OtherLostConnection };
     DuelOutcome outcome{ DuelOutcome::Tie };
     while (window.isOpen())
     {
-        sf::Event event;
-        while (window.pollEvent(event))
+        sf::Event gameEvent;
+        while (window.pollEvent(gameEvent))
         {
-            switch (event.type)
+            switch (gameEvent.type)
             {
             case sf::Event::Closed:
                 window.close();
                 break;
-            case sf::Event::KeyPressed:
-                console.Update(event.key);
+            case sf::Event::MouseButtonPressed:
+            case sf::Event::MouseButtonReleased:
+            case sf::Event::MouseMoved:
+                if (connection.established)
+                    compile.ReactTo(gameEvent);
                 break;
             }
         }
@@ -57,7 +63,7 @@ enum class DuelOutcome { Won, Lost, Tie, LostConnection, OtherLostConnection };
             return DuelOutcome::OtherLostConnection;
         Network::Messages::Disconnection disconnectionMessage{};
         float deltaTime = frame.restart().asSeconds();          
-        if (console.GetMessage() == "c")
+        if (connection.established && compile.WasClicked())
         {
             brain.Compile(map, enemy);
             if (brain.codeDebug.getString().isEmpty())
@@ -76,7 +82,6 @@ enum class DuelOutcome { Won, Lost, Tie, LostConnection, OtherLostConnection };
                     logger.Log("Sent pause message");
             }
         }     
-        console.Clear();
         if (connection.Receive(initialReceive) == sf::Socket::Done && !connection.established)
         {
             connection.Send(brain.GetInitialMessage());
@@ -148,9 +153,11 @@ enum class DuelOutcome { Won, Lost, Tie, LostConnection, OtherLostConnection };
                     " " + std::to_string(brain.GetDestination().destination.y));
             if (brain.TryAim(enemy))
             {
-                Network::Messages::Aim aimToSend;
-                aimToSend.aimingDirection = brain.GetAimingDirection();
-                aimToSend.willShoot = laserTimer->getElapsedTime().asSeconds() > 1;
+                Network::Messages::Aim aimToSend
+                {
+                    .aimingDirection = brain.GetAimingDirection(),
+                    .willShoot = laserTimer->getElapsedTime().asSeconds() > 1
+                };
                 if (connection.Send(aimToSend) == sf::Socket::Done)
                 {
                     logger.Log("Sent aiming direction " + std::to_string(aimToSend.aimingDirection.x) +
@@ -158,9 +165,11 @@ enum class DuelOutcome { Won, Lost, Tie, LostConnection, OtherLostConnection };
                     if (aimToSend.willShoot)
                     {
                         laserTimer->restart();
-                        ShootContext context{ player.Shoot(brain.GetFacingDirection(), enemy) };
-                        Network::Messages::Health healthToSend{};
-                        healthToSend.health = context.health;
+                        ShootContext context(player.Shoot(brain.GetFacingDirection(), enemy));
+                        Network::Messages::Health healthToSend
+                        {
+                            .health = context.health
+                        };
                         if (context.hit && connection.Send(healthToSend) == sf::Socket::Done)
                         {
                             logger.Log("Sent health " + std::to_string(context.health));
@@ -199,6 +208,8 @@ enum class DuelOutcome { Won, Lost, Tie, LostConnection, OtherLostConnection };
             enemy.Draw(window);
         window.draw(message);
         window.draw(brain.codeDebug);
+        if (connection.established)
+            compile.Draw(window);
         window.display();
     }
     return DuelOutcome::LostConnection;
@@ -252,9 +263,11 @@ int main()
     sf::ContextSettings settings;
     settings.antialiasingLevel = 8;
     sf::RenderWindow window(sf::VideoMode(1280, 720), "Void Skirmishes", sf::Style::Default, settings);
-    sf::Font arrial;
-    arrial.loadFromFile(FontDirectory"arial.ttf");
-    sf::Text message("Do you want to be a host or a client?", arrial, 24);
+    Resources resources;
+    auto arrialPath(FontDirectory"arial.ttf");
+    auto arrial = resources.fonts.try_emplace(arrialPath);
+    arrial.first->second.loadFromFile(arrialPath);
+    sf::Text message("Do you want to be a host or a client?", arrial.first->second, 24);
     message.setStyle(sf::Text::Bold);
     message.setPosition(window.getSize().x / 2.f, window.getSize().y / 10.f);
     Console console(message, { window.getSize().x / 64.f, window.getSize().y / 2.8f });
@@ -327,7 +340,7 @@ int main()
             case Role::Host:
             case Role::Client:
                 console.Clear();
-                DuelOutcome outcome = Duel(connection.value(), brain.value(), window, message, console);
+                DuelOutcome outcome(Duel(resources, connection.value(), brain.value(), window, message));
                 if (outcome == DuelOutcome::OtherLostConnection)
                 {
                     role = Role::Undecided;

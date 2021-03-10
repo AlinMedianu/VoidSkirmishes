@@ -1,10 +1,13 @@
 #include "Character.h"
 
-Character::Character(float radius, sf::Vector2f position, float rotation, float scale, const sf::Color& colour)
-	: bodyTexture(), body(), nonRotatedBody(), healthBar{ nullptr }, laser{ nullptr }
+Character::Character(Resources& resources, sf::Vector2f position, float rotation, float scale, const sf::Color& colour)
+	: body(), nonRotatedBody(), healthBar{ nullptr }, laser{ nullptr }
 {
-	bodyTexture.loadFromFile(SpriteDirectory"Player.png");
-	body.setTexture(bodyTexture);
+	auto playerTexturePath(SpriteDirectory"Player.png");
+	auto playerTexture = resources.textures.try_emplace(playerTexturePath);
+	if (playerTexture.second)
+		playerTexture.first->second.loadFromFile(playerTexturePath);
+	body.setTexture(playerTexture.first->second);
 	body.setPosition(position);
 	body.setScale(scale, scale);
 	body.setOrigin(body.getLocalBounds().left + body.getLocalBounds().width / 2.f, body.getLocalBounds().top + body.getLocalBounds().height / 2.f);

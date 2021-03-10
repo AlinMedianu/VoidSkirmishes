@@ -28,6 +28,7 @@
     <ClCompile Include="LuaBrain.cpp" />
     <ClCompile Include="Main.cpp" />
     <ClCompile Include="HealthBar.cpp" />
+    <ClCompile Include="UIButton.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Character.h" />
@@ -40,6 +41,8 @@
     <ClInclude Include="NetworkConnection.h" />
     <ClInclude Include="LuaBrain.h" />
     <ClInclude Include="HealthBar.h" />
+    <ClInclude Include="Resources.h" />
+    <ClInclude Include="UIButton.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

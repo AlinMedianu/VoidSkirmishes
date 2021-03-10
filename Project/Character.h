@@ -1,8 +1,8 @@
 #ifndef CHARACTER
 #define CHARACTER
 
-#include <SFML/Graphics/Texture.hpp>
 #include <SFML/Graphics/Sprite.hpp>
+#include "Resources.h"
 #include "HealthBar.h"
 #include "Laser.h"
 
@@ -14,13 +14,12 @@ struct ShootContext
 
 class Character
 {
-	sf::Texture bodyTexture;
 	sf::Sprite body;
 	sf::Transformable nonRotatedBody;
 public:
 	Laser* laser;
 	HealthBar* healthBar;
-	explicit Character(float radius, sf::Vector2f position, float rotation, float scale, const sf::Color& colour);
+	explicit Character(Resources& resources, sf::Vector2f position, float rotation, float scale, const sf::Color& colour);
 	[[nodiscard]] sf::FloatRect GetBounds() const;
 	[[nodiscard]] sf::Vector2f GetPosition() const;
 	void SetPosition(sf::Vector2f newPosition);
