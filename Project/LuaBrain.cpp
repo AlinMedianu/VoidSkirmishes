@@ -1,5 +1,4 @@
 #include "LuaBrain.h"
-
 namespace Lua
 {
 	std::string Brain::script = "";
@@ -31,21 +30,15 @@ namespace Lua
 
 	void Brain::Compile(const sf::FloatRect& map, const Character& enemy) noexcept
 	{
-		ErrorMessage errorMessage = static_cast<ErrorMessage>(luaL_dofile(state, (InputDirectory + script).c_str()));
 		representation.SyncFrom(player);
-		switch (errorMessage)
-		{
-		case ErrorMessage::Yield:
-			player = luabridge::newTable(state);
-			Reset();
-			luabridge::setGlobal(state, player, "player");
-			break;
-		case ErrorMessage::OK:
-			codeDebug.setString("");
-			break;
-		}
+		player = luabridge::newTable(state);
+		Reset();
+		luabridge::setGlobal(state, player, "player");
+		codeDebug.setString("");
+		luaL_dofile(state, (InputDirectory + script).c_str());
+		representation.Sync(player);
 		SetNextDestination(map);
-		if (codeDebug.getString() == "")
+		if (codeDebug.getString().isEmpty())
 			Aim(enemy);
 		representation.Sync(player);
 	}
@@ -81,6 +74,13 @@ namespace Lua
 
 	void Brain::SetNextDestination(const sf::FloatRect& map)
 	{		
+		if (!player["setNextDestination"].isFunction())
+		{
+			codeDebug.setString(script + ": Function setNextDestination was not found!");
+			return;
+		}
+		Player beforeSetNextDestination{};
+		beforeSetNextDestination.SyncFrom(player);
 		lua_pushcfunction(state, AddTracebackToError);
 		player["setNextDestination"].push();
 		luabridge::Stack<sf::FloatRect>::push(state, map);
@@ -94,11 +94,23 @@ namespace Lua
 				lua_pushvalue(state, 1);				
 				debugMessage = lua_tostring(state, -2);
 			}
+			size_t scriptDebugMessagePosition{ debugMessage.find(script) };
+			if (scriptDebugMessagePosition == std::string::npos)
+				debugMessage = "Unexpected error! Please let me know how you got here!";
 			codeDebug.setString(debugMessage);
 			lua_pop(state, 1);
 		}
 		lua_pop(state, 1);
 		lua_settop(state, 0);
+		if (player["position"].cast<sf::Vector2f>() != beforeSetNextDestination.position || 
+			player["movementSpeed"] != beforeSetNextDestination.movementSpeed ||
+			player["facingDirection"].cast<sf::Vector2f>() != beforeSetNextDestination.facingDirection ||
+			player["aimingDirection"].cast<sf::Vector2f>() != beforeSetNextDestination.aimingDirection ||
+			player["turningSpeed"] != beforeSetNextDestination.turningSpeed)
+		{
+			codeDebug.setString(script + ": You can only change the player's " + 
+				"destination in the function setNextDestination!");
+		}
 	}
 
 	bool Brain::TryAim(const Character& enemy)
@@ -115,6 +127,13 @@ namespace Lua
 
 	void Brain::Aim(const Character& enemy)
 	{
+		if (!player["aim"].isFunction())
+		{
+			codeDebug.setString(script + ": Function aim was not found!");
+			return;
+		}
+		Player beforeAim{};
+		beforeAim.SyncFrom(player);
 		lua_pushcfunction(state, AddTracebackToError);
 		player["aim"].push();
 		luabridge::Stack<Character>::push(state, enemy);
@@ -128,14 +147,36 @@ namespace Lua
 				lua_pushvalue(state, 1);
 				debugMessage = lua_tostring(state, -2);
 			}
-			if (codeDebug.getString() != "")
-				codeDebug.setString(codeDebug.getString() + "\n\n" + debugMessage);
+			size_t scriptDebugMessagePosition{ debugMessage.find(script) };
+			if (scriptDebugMessagePosition != std::string::npos)
+			{
+				if (!codeDebug.getString().isEmpty())
+					codeDebug.setString(codeDebug.getString() + "\n\n" + debugMessage);
+				else
+					codeDebug.setString(debugMessage);
+			}
 			else
-				codeDebug.setString(debugMessage);
+				codeDebug.setString("Unexpected error! Please let me know how you got here!");
 			lua_pop(state, 1);
 		}
 		lua_pop(state, 1);
 		lua_settop(state, 0);
+		if (player["position"].cast<sf::Vector2f>() != beforeAim.position ||
+			player["destination"].cast<sf::Vector2f>() != beforeAim.destination ||
+			player["movementSpeed"] != beforeAim.movementSpeed ||
+			player["facingDirection"].cast<sf::Vector2f>() != beforeAim.facingDirection ||
+			player["turningSpeed"] != beforeAim.turningSpeed)
+		{
+			std::string debugMessage
+			{ 
+				script + ": You can only change the player's " +
+					"aiming direction in the function aim!" 
+			};
+			if (!codeDebug.getString().isEmpty())
+				codeDebug.setString(codeDebug.getString() + "\n\n" + debugMessage);
+			else
+				codeDebug.setString(debugMessage);
+		}
 	}
 
 	float Brain::GetMovementSpeed() const

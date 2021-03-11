@@ -14,12 +14,12 @@ namespace Network
 		addressAndPort = "Local address: " + sf::IpAddress::getLocalAddress().toString() +
 			"\nPort: " + std::to_string(socket.getLocalPort());
 		messageBoard.setString("Local address: " + sf::IpAddress::getLocalAddress().toString() +
-			"\nHost is listening to port " + std::to_string(socket.getLocalPort()) +
+			"\nHost is listening to port: " + std::to_string(socket.getLocalPort()) +
 			"\nPress the adjacent button" + 
 			"\nand paste the formatted string with your" +
 			"\naddress and port somewhere" + 
 			"\nwhere the client can access it."
-			",\nwaiting for connections... ");
+			"\nWaiting for connections... ");
 	}
 
 	Connection::Connection(const std::string& address, sf::Uint16 port, sf::Text& messageBoard)
