@@ -2,7 +2,7 @@
 namespace UI
 {
 	Button::Button(Resources& resources, sf::Vector2f position, sf::Vector2f scale, std::string&& message)
-		: clicked{ false }, current { State::Default }, textures{}, body(), message()
+		: clicked{ false }, current{ State::Default }, textures{}, body(), message()
 	{
 		std::array<std::string, static_cast<size_t>(State::COUNT)> texturePaths
 		{ 
@@ -38,7 +38,6 @@ namespace UI
 
 	void Button::ReactTo(const sf::Event& mouseEvent)
 	{
-		clicked = false;
 		if (current == State::Inactive)
 			return;
 		switch (mouseEvent.type)
@@ -91,14 +90,21 @@ namespace UI
 		UpdateTexture();
 	}
 
-	bool Button::WasClicked() const noexcept
+	bool Button::WasClicked() noexcept
 	{
-		return clicked;
+		bool wasClicked = clicked;
+		clicked = false;
+		return wasClicked;
 	}
 
 	Button::State Button::GetCurrentState() const noexcept
 	{
 		return current;
+	}
+
+	sf::Vector2f Button::Size() const
+	{
+		return static_cast<sf::Vector2f>(textures[static_cast<size_t>(current)]->getSize());
 	}
 
 	void Button::Draw(sf::RenderWindow& on)

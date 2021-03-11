@@ -12,6 +12,7 @@ namespace Network
 	{
 		sf::Text& messageBoard;
 		sf::UdpSocket socket;
+		sf::String addressAndPort;
 		sf::IpAddress otherAddress;
 		sf::Uint16 otherPort;
 		sf::Packet sent, received;
@@ -21,7 +22,8 @@ namespace Network
 	public:
 		bool established;
 		Connection(sf::Text& messageBoard);
-		Connection(const sf::String& address, const sf::String& port, sf::Text& messageBoard);
+		Connection(const std::string& address, sf::Uint16 port, sf::Text& messageBoard);
+		[[nodiscard]] const sf::String& AddressAndPort() const noexcept;
 		template<Message M>
 		sf::Socket::Status Send(const M& message);
 		template<Message M>
@@ -64,6 +66,18 @@ namespace Network
 			return Process(message);
 		}
 		return hasReceived;
+	}
+
+	[[nodiscard]] inline bool TryGetAddressAndPort(const sf::String& string, std::string& address, sf::Uint16& port)
+	{
+		size_t newLinePosition = string.find("\nPort: ");
+		if (string.find("Local address: ") > 0 ||
+			newLinePosition == sf::String::InvalidPos)
+			return false;
+		address = std::string{ string.begin() + std::string{ "Local address: " }.length(), string.begin() + newLinePosition };
+		std::string otherPortString{ string.begin() + newLinePosition + std::string{ "Port: " }.length(), string.end() };
+		port = static_cast<sf::Uint16>(std::stoi(otherPortString));
+		return true;
 	}
 }
 #endif // !NETWORKCONNECTION

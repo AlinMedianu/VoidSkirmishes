@@ -18,8 +18,9 @@ namespace UI
 		void ReactTo(const sf::Event& mouseEvent);
 		void Activate();
 		void Deactivate();
-		[[nodiscard]] bool WasClicked() const noexcept;
+		[[nodiscard]] bool WasClicked() noexcept;
 		[[nodiscard]] State GetCurrentState() const noexcept;
+		[[nodiscard]] sf::Vector2f Size() const;
 		void Draw(sf::RenderWindow& on);
 	private:
 		void UpdateTexture();
