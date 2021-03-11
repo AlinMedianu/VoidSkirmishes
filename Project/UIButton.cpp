@@ -90,6 +90,14 @@ namespace UI
 		UpdateTexture();
 	}
 
+	void Button::Move(sf::Vector2f position)
+	{
+		body.setPosition(position);
+		message.setPosition(position);
+		message.setOrigin(message.getLocalBounds().left + message.getLocalBounds().width / 2.f,
+			message.getLocalBounds().top + message.getLocalBounds().height / 2.f);
+	}
+
 	bool Button::WasClicked() noexcept
 	{
 		bool wasClicked = clicked;

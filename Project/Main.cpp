@@ -284,8 +284,13 @@ int main()
 {
     sf::ContextSettings settings;
     settings.antialiasingLevel = 8;
-    sf::RenderWindow window(sf::VideoMode(1280, 720), "Void Skirmishes", sf::Style::Default, settings);
-    Resources resources;
+    sf::VideoMode nonFulscreenMode(1280, 720);
+    sf::VideoMode fullscreenMode(sf::VideoMode::getDesktopMode());
+    auto fulscreenModes(sf::VideoMode::getFullscreenModes());
+    if (nonFulscreenMode.width >= fullscreenMode.width || nonFulscreenMode.height >= fullscreenMode.height)
+        nonFulscreenMode = fulscreenModes[fulscreenModes.size() / 2];
+    sf::RenderWindow window(nonFulscreenMode, "Void Skirmishes", sf::Style::Default, settings);
+    Resources resources{};
     auto arrialPath(FontDirectory"arial.ttf");
     auto arrial = resources.fonts.try_emplace(arrialPath);
     arrial.first->second.loadFromFile(arrialPath);
@@ -300,6 +305,8 @@ int main()
     message.setPosition(window.getSize().x / 2.f, window.getSize().y * 0.4f);
     UI::Button hostGame(resources, { window.getSize().x / 2.f, window.getSize().y / 3.f }, { 1.f, 0.25f }, "Host Game");
     UI::Button joinGame(resources, { window.getSize().x / 2.f, window.getSize().y / 3.f + 50 + hostGame.Size().y * 0.25f }, { 1.f, 0.25f }, "Join Game"); 
+    UI::Button toggleFullscreen(resources, { window.getSize().x / 2.f, window.getSize().y / 3.f + 50 + 
+        hostGame.Size().y * 0.25f + 50 + hostGame.Size().y * 0.25f }, { 1.f, 0.25f }, "Toggle Fullscreen");
     UI::Button connectToHost(resources, { window.getSize().x / 2.f, 2 * window.getSize().y / 3.f }, { 1.f, 0.25f }, "Connect to Host"); 
     Role role(Role::Undecided);
     std::optional<Network::Connection> connection;
@@ -307,6 +314,7 @@ int main()
     std::string hostAddress{};
     sf::Uint16 hostPort{};
     bool validHostAddressAndPort{};
+    bool fullscreen{};
     while (window.isOpen())
     {
         sf::Event gameEvent;
@@ -317,6 +325,8 @@ int main()
             case sf::Event::Closed:
                 window.close();
                 break;
+            case sf::Event::Resized:
+                break;
             case sf::Event::MouseButtonPressed:
             case sf::Event::MouseButtonReleased:
             case sf::Event::MouseMoved:
@@ -325,6 +335,7 @@ int main()
                 case Role::Undecided:
                     hostGame.ReactTo(gameEvent);
                     joinGame.ReactTo(gameEvent);
+                    toggleFullscreen.ReactTo(gameEvent);
                     break;
                 case Role::Client:
                     if (validHostAddressAndPort)
@@ -355,16 +366,38 @@ int main()
                 message.setString("");
                 connection.emplace(message);
                 brain.emplace("move&aim.lua", sf::Vector2f{ window.getSize().x * 0.25f, window.getSize().y * 0.25f }, sf::Vector2f{ 0, 1 });
+                message.setOrigin(message.getLocalBounds().left + message.getLocalBounds().width / 2.f,
+                    message.getLocalBounds().top + message.getLocalBounds().height / 2.f);
+                message.setPosition(window.getSize().x / 2.f, window.getSize().y * 0.2f);
             }
             else if (joinGame.WasClicked())
             {
                 role = Role::Client;
                 message.setString("What address and port do you want to connect to? "
                     "\nPaste the formatted string from the host.");
+                message.setOrigin(message.getLocalBounds().left + message.getLocalBounds().width / 2.f,
+                    message.getLocalBounds().top + message.getLocalBounds().height / 2.f);
+                message.setPosition(window.getSize().x / 2.f, window.getSize().y * 0.2f);
             }
-            message.setOrigin(message.getLocalBounds().left + message.getLocalBounds().width / 2.f, 
-                message.getLocalBounds().top + message.getLocalBounds().height / 2.f);
-            message.setPosition(window.getSize().x / 2.f, window.getSize().y * 0.2f);
+            else if (toggleFullscreen.WasClicked())
+            {
+                if (!fullscreen)
+                    window.create(fullscreenMode, "Void Skirmishes", sf::Style::Fullscreen, settings);
+                else
+                    window.create(nonFulscreenMode, "Void Skirmishes", sf::Style::Default, settings);
+                title.setPosition(window.getSize().x / 2.f, window.getSize().y / 10.f);
+                title.setOrigin(title.getLocalBounds().left + title.getLocalBounds().width / 2.f,
+                    title.getLocalBounds().top + title.getLocalBounds().height / 2.f);
+                message.setPosition(window.getSize().x / 2.f, window.getSize().y * 0.4f);
+                message.setOrigin(message.getLocalBounds().left + message.getLocalBounds().width / 2.f,
+                    message.getLocalBounds().top + message.getLocalBounds().height / 2.f);
+                hostGame.Move({ window.getSize().x / 2.f, window.getSize().y / 3.f });
+                joinGame.Move({ window.getSize().x / 2.f, window.getSize().y / 3.f + 50 + hostGame.Size().y * 0.25f });
+                toggleFullscreen.Move({ window.getSize().x / 2.f, window.getSize().y / 3.f + 50 +
+                    hostGame.Size().y * 0.25f + 50 + hostGame.Size().y * 0.25f });
+                connectToHost.Move({ window.getSize().x / 2.f, window.getSize().y / 3.f });
+                fullscreen = !fullscreen;
+            }
             break;
         case Role::Client:
             if (validHostAddressAndPort && connectToHost.WasClicked())
@@ -418,6 +451,7 @@ int main()
         case Role::Undecided:
             hostGame.Draw(window);
             joinGame.Draw(window);
+            toggleFullscreen.Draw(window);
             break;
         case Role::Client:
             if (validHostAddressAndPort)
