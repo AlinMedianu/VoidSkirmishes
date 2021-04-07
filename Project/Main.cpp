@@ -16,12 +16,12 @@ enum class DuelOutcome { Won, Lost, Tie, LostConnection, OtherLostConnection };
     UI::Button copy(resources, { 4 * window.getSize().x / 5.f, window.getSize().y / 5.f },
         { 0.75f, 0.25f }, "Copy IP & port");
     Debug logger(message);
-    brain.codeDebug.setFont(*message.getFont());
-    brain.codeDebug.setCharacterSize(16);
-    brain.codeDebug.setStyle(sf::Text::Bold);
-    brain.codeDebug.setPosition(window.getSize().x / 10.f, 3 * window.getSize().y / 4.f);
-    brain.codeDebug.setOrigin(brain.codeDebug.getLocalBounds().left + brain.codeDebug.getLocalBounds().width / 2.f, 
-        brain.codeDebug.getLocalBounds().top + brain.codeDebug.getLocalBounds().height / 2.f);
+    brain.errorMessages.setFont(*message.getFont());
+    brain.errorMessages.setCharacterSize(16);
+    brain.errorMessages.setStyle(sf::Text::Bold);
+    brain.errorMessages.setPosition(window.getSize().x / 10.f, 3 * window.getSize().y / 4.f);
+    brain.errorMessages.setOrigin(brain.errorMessages.getLocalBounds().left + brain.errorMessages.getLocalBounds().width / 2.f, 
+        brain.errorMessages.getLocalBounds().top + brain.errorMessages.getLocalBounds().height / 2.f);
     Character player(resources, brain.GetPosition(), Math::DirectionToAngle(brain.GetFacingDirection()), 0.1f, sf::Color::Green);
     Character enemy(resources, {}, {}, 0.1f, sf::Color::Red);
     HealthBar playerHealthBar(player.GetBounds(), { 0.8f, 0.05f }, 10, sf::Color::Green);
@@ -72,7 +72,7 @@ enum class DuelOutcome { Won, Lost, Tie, LostConnection, OtherLostConnection };
         if (connection.established && compile.WasClicked())
         {
             brain.Compile(map, enemy);
-            if (brain.codeDebug.getString().isEmpty())
+            if (brain.errorMessages.getString().isEmpty())
             {
                 if (sentPauseMessage.paused)
                 {
@@ -195,30 +195,33 @@ enum class DuelOutcome { Won, Lost, Tie, LostConnection, OtherLostConnection };
                     }
                 }
             }
-            if (!brain.codeDebug.getString().isEmpty())
+            if (brain.errorMessages.getString().isEmpty())
+            {
+                nextPosition = Math::ConstantIncrement(brain.GetPosition(), brain.GetDestination().destination, deltaTime * brain.GetMovementSpeed());
+                player.SetPosition(nextPosition);
+                brain.SetPosition(nextPosition);
+                nextRotation = Math::LerpNormalizedAngle(Math::DirectionToAngle(brain.GetFacingDirection()), 
+                    Math::DirectionToAngle(brain.GetAimingDirection()), deltaTime * brain.GetTurningSpeed());
+                player.SetRotation(nextRotation);
+                brain.SetFacingDirection(Math::AngleToDirection(nextRotation));  
+                player.Update(deltaTime); 
+                enemy.Update(deltaTime);
+                if (player.healthBar->GetHealth() == 0 || enemy.healthBar->GetHealth() == 0)
+                    return outcome;
+            }
+            else
             {
                 sentPauseMessage.paused = true;
                 if (connection.Send(sentPauseMessage) == sf::Socket::Done)
                     logger.Log("Sent pause message");
             }
-            nextPosition = Math::ConstantIncrement(brain.GetPosition(), brain.GetDestination().destination, deltaTime * brain.GetMovementSpeed());
-            player.SetPosition(nextPosition);
-            brain.SetPosition(nextPosition);
-            nextRotation = Math::LerpNormalizedAngle(Math::DirectionToAngle(brain.GetFacingDirection()), 
-                Math::DirectionToAngle(brain.GetAimingDirection()), deltaTime * brain.GetTurningSpeed());
-            player.SetRotation(nextRotation);
-            brain.SetFacingDirection(Math::AngleToDirection(nextRotation));  
-            player.Update(deltaTime); 
-            enemy.Update(deltaTime);
-            if (player.healthBar->GetHealth() == 0 || enemy.healthBar->GetHealth() == 0)
-                return outcome;
         }       
         window.clear();
         player.Draw(window);
         if (connection.established)
             enemy.Draw(window);
         window.draw(message);
-        window.draw(brain.codeDebug);
+        window.draw(brain.errorMessages);
         if (connection.established)
             compile.Draw(window);
         else if(connection.AddressAndPort() != "" && !disconnectionTimer.has_value())
@@ -284,12 +287,7 @@ int main()
 {
     sf::ContextSettings settings;
     settings.antialiasingLevel = 8;
-    sf::VideoMode nonFulscreenMode(1280, 720);
-    sf::VideoMode fullscreenMode(sf::VideoMode::getDesktopMode());
-    auto fulscreenModes(sf::VideoMode::getFullscreenModes());
-    /*if (nonFulscreenMode.width >= fullscreenMode.width || nonFulscreenMode.height >= fullscreenMode.height)
-        nonFulscreenMode = fulscreenModes[fulscreenModes.size() / 2];*/
-    sf::RenderWindow window(nonFulscreenMode, "Void Skirmishes", sf::Style::Default, settings);
+    sf::RenderWindow window(sf::VideoMode(1280, 720), "Void Skirmishes", sf::Style::Titlebar | sf::Style::Close, settings);
     Resources resources{};
     auto arrialPath(FontDirectory"arial.ttf");
     auto arrial = resources.fonts.try_emplace(arrialPath);
@@ -305,8 +303,6 @@ int main()
     message.setPosition(window.getSize().x / 2.f, window.getSize().y * 0.4f);
     UI::Button hostGame(resources, { window.getSize().x / 2.f, window.getSize().y / 3.f }, { 1.f, 0.25f }, "Host Game");
     UI::Button joinGame(resources, { window.getSize().x / 2.f, window.getSize().y / 3.f + 50 + hostGame.Size().y * 0.25f }, { 1.f, 0.25f }, "Join Game"); 
-    /*UI::Button toggleFullscreen(resources, { window.getSize().x / 2.f, window.getSize().y / 3.f + 50 + 
-        hostGame.Size().y * 0.25f + 50 + hostGame.Size().y * 0.25f }, { 1.f, 0.25f }, "Toggle Fullscreen");*/
     UI::Button connectToHost(resources, { window.getSize().x / 2.f, 2 * window.getSize().y / 3.f }, { 1.f, 0.25f }, "Connect to Host"); 
     Role role(Role::Undecided);
     std::optional<Network::Connection> connection;
@@ -335,7 +331,6 @@ int main()
                 case Role::Undecided:
                     hostGame.ReactTo(gameEvent);
                     joinGame.ReactTo(gameEvent);
-                    //toggleFullscreen.ReactTo(gameEvent);
                     break;
                 case Role::Client:
                     if (validHostAddressAndPort)
@@ -379,25 +374,6 @@ int main()
                     message.getLocalBounds().top + message.getLocalBounds().height / 2.f);
                 message.setPosition(window.getSize().x / 2.f, window.getSize().y * 0.2f);
             }
-            /*else if (toggleFullscreen.WasClicked())
-            {
-                if (!fullscreen)
-                    window.create(fullscreenMode, "Void Skirmishes", sf::Style::Fullscreen, settings);
-                else
-                    window.create(nonFulscreenMode, "Void Skirmishes", sf::Style::Default, settings);
-                title.setPosition(window.getSize().x / 2.f, window.getSize().y / 10.f);
-                title.setOrigin(title.getLocalBounds().left + title.getLocalBounds().width / 2.f,
-                    title.getLocalBounds().top + title.getLocalBounds().height / 2.f);
-                message.setPosition(window.getSize().x / 2.f, window.getSize().y * 0.4f);
-                message.setOrigin(message.getLocalBounds().left + message.getLocalBounds().width / 2.f,
-                    message.getLocalBounds().top + message.getLocalBounds().height / 2.f);
-                hostGame.Move({ window.getSize().x / 2.f, window.getSize().y / 3.f });
-                joinGame.Move({ window.getSize().x / 2.f, window.getSize().y / 3.f + 50 + hostGame.Size().y * 0.25f });
-                toggleFullscreen.Move({ window.getSize().x / 2.f, window.getSize().y / 3.f + 50 +
-                    hostGame.Size().y * 0.25f + 50 + hostGame.Size().y * 0.25f });
-                connectToHost.Move({ window.getSize().x / 2.f, window.getSize().y / 3.f });
-                fullscreen = !fullscreen;
-            }*/
             break;
         case Role::Client:
             if (validHostAddressAndPort && connectToHost.WasClicked())
@@ -451,7 +427,6 @@ int main()
         case Role::Undecided:
             hostGame.Draw(window);
             joinGame.Draw(window);
-            //toggleFullscreen.Draw(window);
             break;
         case Role::Client:
             if (validHostAddressAndPort)

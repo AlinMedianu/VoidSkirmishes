@@ -6,7 +6,7 @@ namespace Lua
 	Brain::Brain(const std::string& script, sf::Vector2f position, sf::Vector2f facingDirection)
 		:state{ luaL_newstate() }, player(luabridge::newTable(state)), representation{},
 		initialPosition{ position }, initialFacingDirection{ facingDirection },
-		initialMessage{}, onMoveMessage{}, onRotateMessage{}, codeDebug{}
+		initialMessage{}, onMoveMessage{}, onRotateMessage{}, errorMessages{}
 	{
 		Brain::script = script;
 		luaL_openlibs(state);
@@ -33,13 +33,11 @@ namespace Lua
 		representation.SyncFrom(player);
 		player = luabridge::newTable(state);
 		Reset();
-		luabridge::setGlobal(state, player, "player");
-		codeDebug.setString("");
+		luabridge::setGlobal(state, player, "player");		
 		luaL_dofile(state, (InputDirectory + script).c_str());
 		representation.Sync(player);
-		SetNextDestination(map);
-		if (codeDebug.getString().isEmpty())
-			Aim(enemy);
+		if (TryCallSetNextDestination(map) && TryCallAim(enemy))
+			errorMessages.setString("");
 		representation.Sync(player);
 	}
 
@@ -53,17 +51,6 @@ namespace Lua
 		player["turningSpeed"] = 10;
 	}
 
-	bool Brain::TrySetNextDestination(const sf::FloatRect& map)
-	{
-		if (player["position"].cast<sf::Vector2f>() == player["destination"].cast<sf::Vector2f>())
-		{
-			SetNextDestination(map);
-			player["destination"] = Math::Confine(player["destination"].cast<sf::Vector2f>(), map);
-			return player["position"].cast<sf::Vector2f>() != player["destination"].cast<sf::Vector2f>();
-		}
-		return false;
-	}
-
 	int Brain::AddTracebackToError(lua_State* state)
 	{
 		std::string errorMessage = lua_tostring(state, -1);
@@ -72,111 +59,50 @@ namespace Lua
 		return 1;
 	};
 
-	void Brain::SetNextDestination(const sf::FloatRect& map)
-	{		
-		if (!player["setNextDestination"].isFunction())
+	bool Brain::TrySetNextDestination(const sf::FloatRect& map)
+	{
+		if (!player["position"].isInstance<sf::Vector2f>() ||
+			!player["destination"].isInstance<sf::Vector2f>() || 
+			player["position"].cast<sf::Vector2f>() == player["destination"].cast<sf::Vector2f>())
 		{
-			codeDebug.setString(script + ": Function setNextDestination was not found!");
-			return;
+			if (!TryCallSetNextDestination(map))
+				return false;
+			player["destination"] = Math::Confine(player["destination"].cast<sf::Vector2f>(), map);
+			return player["position"].cast<sf::Vector2f>() != player["destination"].cast<sf::Vector2f>();
 		}
-		Player beforeSetNextDestination{};
-		beforeSetNextDestination.SyncFrom(player);
-		lua_pushcfunction(state, AddTracebackToError);
-		player["setNextDestination"].push();
-		luabridge::Stack<sf::FloatRect>::push(state, map);
-		if (lua_pcall(state, 1, 1, -3))
-		{		
-			std::string debugMessage;
-			if (lua_type(state, 1) == LUA_TSTRING)
-				debugMessage = lua_tostring(state, 1);
-			else
-			{
-				lua_pushvalue(state, 1);				
-				debugMessage = lua_tostring(state, -2);
-			}
-			size_t scriptDebugMessagePosition{ debugMessage.find(script) };
-			if (scriptDebugMessagePosition == std::string::npos)
-				debugMessage = "Unexpected error! Please let me know how you got here!";
-			codeDebug.setString(debugMessage);
-			lua_pop(state, 1);
-		}
-		lua_pop(state, 1);
-		lua_settop(state, 0);
-		if (player["position"].cast<sf::Vector2f>() != beforeSetNextDestination.position || 
-			player["movementSpeed"] != beforeSetNextDestination.movementSpeed ||
-			player["facingDirection"].cast<sf::Vector2f>() != beforeSetNextDestination.facingDirection ||
-			player["aimingDirection"].cast<sf::Vector2f>() != beforeSetNextDestination.aimingDirection ||
-			player["turningSpeed"] != beforeSetNextDestination.turningSpeed)
-		{
-			codeDebug.setString(script + ": You can only change the player's " + 
-				"destination in the function setNextDestination!");
-		}
+		return false;
+	}
+
+	bool Brain::TryCallSetNextDestination(const sf::FloatRect& map)
+	{
+		return TryCall("setNextDestination", map, Player::Property::Destination);
 	}
 
 	bool Brain::TryAim(const Character& enemy)
 	{
-		if (Math::ApproximativelyEqual(player["facingDirection"].cast<sf::Vector2f>(),
+		if (!player["facingDirection"].isInstance<sf::Vector2f>() ||
+			!player["aimingDirection"].isInstance<sf::Vector2f>() || 
+			Math::ApproximativelyEqual(player["facingDirection"].cast<sf::Vector2f>(),
 			Math::Normalize(player["aimingDirection"].cast<sf::Vector2f>())))
-		{
-			Aim(enemy);
-			return !Math::ApproximativelyEqual(player["facingDirection"].cast<sf::Vector2f>(),
+		{		
+			return TryCallAim(enemy) &&
+				!Math::ApproximativelyEqual(player["facingDirection"].cast<sf::Vector2f>(),
 				Math::Normalize(player["aimingDirection"].cast<sf::Vector2f>()));
 		}
 		return false;
 	}
 
-	void Brain::Aim(const Character& enemy)
+	bool Brain::TryCallAim(const Character& enemy)
 	{
-		if (!player["aim"].isFunction())
-		{
-			codeDebug.setString(script + ": Function aim was not found!");
-			return;
-		}
-		Player beforeAim{};
-		beforeAim.SyncFrom(player);
-		lua_pushcfunction(state, AddTracebackToError);
-		player["aim"].push();
-		luabridge::Stack<Character>::push(state, enemy);
-		if (lua_pcall(state, 1, 1, -3))
-		{
-			std::string debugMessage;
-			if (lua_type(state, 1) == LUA_TSTRING)
-				debugMessage = lua_tostring(state, 1);
-			else
-			{
-				lua_pushvalue(state, 1);
-				debugMessage = lua_tostring(state, -2);
-			}
-			size_t scriptDebugMessagePosition{ debugMessage.find(script) };
-			if (scriptDebugMessagePosition != std::string::npos)
-			{
-				if (!codeDebug.getString().isEmpty())
-					codeDebug.setString(codeDebug.getString() + "\n\n" + debugMessage);
-				else
-					codeDebug.setString(debugMessage);
-			}
-			else
-				codeDebug.setString("Unexpected error! Please let me know how you got here!");
-			lua_pop(state, 1);
-		}
-		lua_pop(state, 1);
-		lua_settop(state, 0);
-		if (player["position"].cast<sf::Vector2f>() != beforeAim.position ||
-			player["destination"].cast<sf::Vector2f>() != beforeAim.destination ||
-			player["movementSpeed"] != beforeAim.movementSpeed ||
-			player["facingDirection"].cast<sf::Vector2f>() != beforeAim.facingDirection ||
-			player["turningSpeed"] != beforeAim.turningSpeed)
-		{
-			std::string debugMessage
-			{ 
-				script + ": You can only change the player's " +
-					"aiming direction in the function aim!" 
-			};
-			if (!codeDebug.getString().isEmpty())
-				codeDebug.setString(codeDebug.getString() + "\n\n" + debugMessage);
-			else
-				codeDebug.setString(debugMessage);
-		}
+		return TryCall("aim", enemy, Player::Property::AimingDirection);
+	}
+
+	void Brain::AddErrorMessages(std::string&& message)
+	{
+		if (!errorMessages.getString().isEmpty())
+			errorMessages.setString(errorMessages.getString() + "\n\n" + message);
+		else
+			errorMessages.setString(message);
 	}
 
 	float Brain::GetMovementSpeed() const
