@@ -77,7 +77,7 @@ namespace Math
         return start + to / length * std::min(length, step);
     }
 
-    [[nodiscard]] inline float LerpNormalizedAngle(float start, float end, float step) noexcept
+    [[nodiscard]] inline float ConstantIncrementNormalizedAngle(float start, float end, float step) noexcept
     {
         assert(IsNormalized(start) && IsNormalized(end));
         float lineDistance{ std::fabs(end - start) };

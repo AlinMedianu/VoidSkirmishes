@@ -156,7 +156,7 @@ enum class DuelOutcome { Won, Lost, Tie, LostConnection, OtherLostConnection };
                 laserTimer.emplace();
             sf::Vector2f nextPosition = Math::ConstantIncrement(enemy.GetPosition(), enemyDestination, deltaTime * brain.GetMovementSpeed());
             enemy.SetPosition(nextPosition);
-            float nextRotation = Math::LerpNormalizedAngle(Math::NormalizeDegrees(enemy.GetRotation()),
+            float nextRotation = Math::ConstantIncrementNormalizedAngle(Math::NormalizeDegrees(enemy.GetRotation()),
                 Math::DirectionToAngle(enemyAimingDirection), deltaTime * brain.GetTurningSpeed());
             enemy.SetRotation(nextRotation);
             if (brain.TrySetNextDestination(map) && connection.Send(brain.GetDestination()) == sf::Socket::Done)
@@ -200,7 +200,7 @@ enum class DuelOutcome { Won, Lost, Tie, LostConnection, OtherLostConnection };
                 nextPosition = Math::ConstantIncrement(brain.GetPosition(), brain.GetDestination().destination, deltaTime * brain.GetMovementSpeed());
                 player.SetPosition(nextPosition);
                 brain.SetPosition(nextPosition);
-                nextRotation = Math::LerpNormalizedAngle(Math::DirectionToAngle(brain.GetFacingDirection()), 
+                nextRotation = Math::ConstantIncrementNormalizedAngle(Math::DirectionToAngle(brain.GetFacingDirection()), 
                     Math::DirectionToAngle(brain.GetAimingDirection()), deltaTime * brain.GetTurningSpeed());
                 player.SetRotation(nextRotation);
                 brain.SetFacingDirection(Math::AngleToDirection(nextRotation));  
